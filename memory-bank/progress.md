@@ -70,8 +70,8 @@
 - [x] Verify enrolled faces are recognized (Verified via script) ✅
 
 ### Medium Priority
-- [ ] Re-ID integration into live pipeline
-- [ ] Event export (CSV/JSON)
+- [x] Re-ID integration into live pipeline ✅
+- [x] Event export (CSV/JSON) ✅
 - [ ] Zone/ROI configuration per camera
 - [ ] Settings persistence verification
 - [x] GSM fallback trigger logic ✅

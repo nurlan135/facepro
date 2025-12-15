@@ -42,6 +42,8 @@
    - Settings-də Test Connection düyməsi
    - Status panel-də Telegram indicator
    - **GSM Fallback Logic**: Offline rejimdə SMS göndərmə (main_window.py) ✅
+   - **Event Export**: CSV/JSON ixrac (UTF-8 BOM support) ✅
+   - **Re-ID Integration**: AI worker-də Re-ID məntiqi ✅
 
 ### Current Machine License
 - **Machine ID**: E3B0-C442-98FC-1C14
@@ -64,12 +66,12 @@
 
 ### Short-term
 4. [x] GSM SMS fallback implementation (Implemented in main_window.py) ✅
-5. [ ] Event export functionality (CSV/JSON)
+5. [x] Event export functionality (CSV/JSON) ✅
 6. [ ] Settings persistence verification
 7. [ ] Zone/ROI drawing for cameras
 
 ### Medium-term
-9. [ ] Re-ID integration into pipeline
+9. [x] Re-ID integration into pipeline ✅
 10. [ ] Performance optimization
 11. [ ] Multi-language support (AZ, EN, RU)
 12. [ ] Installer/deployment package

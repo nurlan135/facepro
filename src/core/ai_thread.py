@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from src.utils.logger import get_logger
 from src.utils.helpers import crop_person
+from src.core.reid_engine import get_reid_engine, ReIDEngine
 
 logger = get_logger()
 
@@ -422,7 +423,12 @@ class AIWorker(QThread):
         # AI components
         self._motion_detector = MotionDetector()
         self._object_detector = ObjectDetector()
+        self._object_detector = ObjectDetector()
         self._face_recognizer = FaceRecognizer()
+        self._reid_engine = get_reid_engine()
+        
+        # Re-ID Cache: {user_id: [embedding]}
+        self._reid_embeddings: List[Tuple[int, int, str, np.ndarray]] = []  # (emb_id, user_id, user_name, embedding)
         
         # Settings
         self._skip_motion_check = False  # Debug üçün
@@ -438,8 +444,12 @@ class AIWorker(QThread):
         try:
             loaded = self._face_recognizer.load_from_database()
             logger.info(f"Loaded {loaded} known faces from database")
+            
+            # Load Re-ID embeddings
+            self._load_reid_embeddings()
+            
         except Exception as e:
-            logger.error(f"Failed to load faces: {e}")
+            logger.error(f"Failed to load faces/embeddings: {e}")
         
         while self._running:
             if self._paused:
@@ -519,7 +529,21 @@ class AIWorker(QThread):
                     detection.confidence = confidence
                 else:
                     detection.label = "Unknown"
-                    # TODO: Re-ID burada işləyəcək
+                    
+                    # Re-ID Attempt (if face not found/recognized)
+                    person_crop = crop_person(frame, detection.bbox)
+                    if person_crop is not None:
+                        current_embedding = self._reid_engine.extract_embedding(person_crop)
+                        
+                        if current_embedding is not None and self._reid_embeddings:
+                            # Compare with stored embeddings
+                            match = self._reid_engine.compare_embeddings(current_embedding, self._reid_embeddings)
+                            
+                            if match:
+                                detection.label = f"{match.user_name} (Re-ID)"
+                                detection.is_known = True
+                                detection.confidence = match.confidence
+                                logger.info(f"Re-ID matched: {match.user_name} ({match.confidence:.2%})")
         
         result.detections = detections
         result.processing_time_ms = (time.time() - start_time) * 1000
@@ -555,6 +579,44 @@ class AIWorker(QThread):
         """Thread-i davam etdirir."""
         with QMutexLocker(self._mutex):
             self._paused = False
+
+    def _load_reid_embeddings(self):
+        """Database-dən Re-ID embedding-lərini yükləyir."""
+        import sqlite3
+        import pickle
+        
+        db_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            'data', 'db', 'faceguard.db'
+        )
+        
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
+            # TODO: Schema-da reid_embeddings cədvəlini yoxlamaq lazımdır
+            # Hazırda MVP üçün biz face encodings istifadə edirik
+            # Lakin gələcəkdə reid_embeddings olacaq
+            # Müvəqqəti olaraq face_recognition encoding-ləri deyil, 
+            # ayrıca bədən embeddingləri lazımdır.
+            # Əgər reid_embeddings cədvəli boşdursa, hələlik heç nə yükləmirik.
+            
+            cursor.execute("""
+                SELECT re.id, re.user_id, u.name, re.embedding
+                FROM reid_embeddings re
+                JOIN users u ON re.user_id = u.id
+            """)
+            
+            for row in cursor.fetchall():
+                emb_id, user_id, user_name, blob = row
+                embedding = pickle.loads(blob)
+                self._reid_embeddings.append((emb_id, user_id, user_name, embedding))
+                
+            conn.close()
+            logger.info(f"Loaded {len(self._reid_embeddings)} Re-ID embeddings")
+            
+        except Exception as e:
+            logger.error(f"Failed to load Re-ID embeddings: {e}")
 
 
 def draw_detections(frame: np.ndarray, detections: List[Detection]) -> np.ndarray:

@@ -27,6 +27,9 @@ except ImportError:
 
 import sys
 import os
+import sqlite3
+import csv
+import json
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from src.utils.logger import get_logger
@@ -516,7 +519,15 @@ class MainWindow(QMainWindow):
         self._add_event(event_data)
         
         # Snapshot saxla
-        save_snapshot(frame, prefix=detection.label or 'unknown')
+        snapshot_path = save_snapshot(frame, prefix=detection.label or 'unknown')
+        
+        # Log to Database
+        self._log_event_to_db(
+            event_type="PERSON" if detection.type == DetectionType.PERSON else "OTHER",
+            object_label=detection.label or "Unknown",
+            confidence=detection.confidence,
+            snapshot_path=snapshot_path
+        )
         
         # Telegram bildirişi
         self._telegram_notifier.send_detection_alert(
@@ -566,10 +577,76 @@ class MainWindow(QMainWindow):
         """Events siyahısını təmizləyir."""
         self.events_list.clear()
     
+    def _log_event_to_db(self, event_type: str, object_label: str, confidence: float, snapshot_path: Optional[str]):
+        """Hadisəni database-ə yazır."""
+        try:
+            db_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                'data', 'db', 'faceguard.db'
+            )
+            
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO events (event_type, object_label, confidence, snapshot_path, created_at)
+                VALUES (?, ?, ?, ?, datetime('now', 'localtime'))
+            """, (event_type, object_label, confidence, snapshot_path))
+            
+            conn.commit()
+            conn.close()
+            
+        except Exception as e:
+            logger.error(f"Failed to log event to DB: {e}")
+
     def _export_events(self):
-        """Events-i fayla export edir."""
-        # TODO: Implement
-        pass
+        """Events-i fayla export edir (CSV/JSON)."""
+        # Fayl seçimi
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Events", "",
+            "CSV Files (*.csv);;JSON Files (*.json)"
+        )
+        
+        if not path:
+            return
+            
+        try:
+            # DB-dən oxu
+            db_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                'data', 'db', 'faceguard.db'
+            )
+            
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row  # Dict kimi oxumaq üçün
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT * FROM events ORDER BY created_at DESC")
+            rows = cursor.fetchall()
+            
+            events = [dict(row) for row in rows]
+            conn.close()
+            
+            if not events:
+                QMessageBox.information(self, "Export", "No events to export.")
+                return
+            
+            # Export logic
+            if path.endswith('.csv'):
+                with open(path, 'w', newline='', encoding='utf-8-sig') as f:
+                    writer = csv.DictWriter(f, fieldnames=events[0].keys())
+                    writer.writeheader()
+                    writer.writerows(events)
+            elif path.endswith('.json'):
+                with open(path, 'w', encoding='utf-8') as f:
+                    json.dump(events, f, indent=4, ensure_ascii=False)
+            
+            QMessageBox.information(self, "Success", f"Successfully exported {len(events)} events.")
+            logger.info(f"Events exported to {path}")
+            
+        except Exception as e:
+            logger.error(f"Export failed: {e}")
+            QMessageBox.critical(self, "Error", f"Export failed: {e}")
     
     def _show_settings(self):
         """Ayarlar dialoqunu göstərir."""
