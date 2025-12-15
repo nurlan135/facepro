@@ -44,6 +44,7 @@
    - **GSM Fallback Logic**: Offline rejimdə SMS göndərmə (main_window.py) ✅
    - **Event Export**: CSV/JSON ixrac (UTF-8 BOM support) ✅
    - **Re-ID Integration**: AI worker-də Re-ID məntiqi ✅
+   - **Multi-language**: AZ, EN, RU dilləri dəstəyi ✅
 
 ### Current Machine License
 - **Machine ID**: E3B0-C442-98FC-1C14
@@ -73,7 +74,7 @@
 ### Medium-term
 9. [x] Re-ID integration into pipeline ✅
 10. [ ] Performance optimization
-11. [ ] Multi-language support (AZ, EN, RU)
+11. [x] Multi-language support (AZ, EN, RU) ✅
 12. [ ] Installer/deployment package
 
 ## Active Decisions

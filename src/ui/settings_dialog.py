@@ -23,6 +23,7 @@ from src.utils.helpers import load_config, save_config, load_cameras, save_camer
 from src.ui.styles import DARK_THEME, COLORS
 from src.hardware.gsm_modem import GSMModem
 from src.hardware.telegram_notifier import TelegramNotifier
+from src.utils.i18n import tr
 
 logger = get_logger()
 
@@ -260,7 +261,7 @@ class SettingsDialog(QDialog):
     
     def _setup_ui(self):
         """UI setup."""
-        self.setWindowTitle("Settings")
+        self.setWindowTitle(tr('settings_title'))
         self.setMinimumSize(600, 500)
         self.setStyleSheet(DARK_THEME)
         
@@ -270,19 +271,19 @@ class SettingsDialog(QDialog):
         tabs = QTabWidget()
         
         # General Tab
-        tabs.addTab(self._create_general_tab(), "General")
+        tabs.addTab(self._create_general_tab(), tr('tab_general'))
         
         # Cameras Tab
-        tabs.addTab(self._create_cameras_tab(), "Cameras")
+        tabs.addTab(self._create_cameras_tab(), tr('tab_camera'))
         
         # AI Tab
-        tabs.addTab(self._create_ai_tab(), "AI Settings")
+        tabs.addTab(self._create_ai_tab(), tr('tab_ai'))
         
         # Notifications Tab
-        tabs.addTab(self._create_notifications_tab(), "Notifications")
+        tabs.addTab(self._create_notifications_tab(), tr('tab_notifications'))
         
         # Storage Tab
-        tabs.addTab(self._create_storage_tab(), "Storage")
+        tabs.addTab(self._create_storage_tab(), tr('tab_storage'))
         
         layout.addWidget(tabs)
         
@@ -290,7 +291,7 @@ class SettingsDialog(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
         
-        cancel_btn = QPushButton("Cancel")
+        cancel_btn = QPushButton(tr('btn_cancel'))
         cancel_btn.setProperty("class", "secondary")
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
@@ -299,7 +300,7 @@ class SettingsDialog(QDialog):
         apply_btn.clicked.connect(self._apply_settings)
         btn_layout.addWidget(apply_btn)
         
-        save_btn = QPushButton("Save && Close")
+        save_btn = QPushButton(tr('btn_save'))
         save_btn.clicked.connect(self._save_and_close)
         btn_layout.addWidget(save_btn)
         
@@ -316,11 +317,11 @@ class SettingsDialog(QDialog):
         
         self.language_combo = QComboBox()
         self.language_combo.addItems(["Azərbaycanca", "English", "Русский"])
-        app_layout.addRow("Language:", self.language_combo)
+        app_layout.addRow(f"{tr('lbl_language')}:", self.language_combo)
         
         self.theme_combo = QComboBox()
         self.theme_combo.addItems(["Dark", "Light"])
-        app_layout.addRow("Theme:", self.theme_combo)
+        app_layout.addRow(f"{tr('lbl_theme')}:", self.theme_combo)
         
         self.autostart_check = QCheckBox("Start with Windows")
         app_layout.addRow("", self.autostart_check)
@@ -518,6 +519,10 @@ class SettingsDialog(QDialog):
         theme = ui_config.get('theme', 'dark')
         self.theme_combo.setCurrentText(theme.capitalize())
         
+        lang_code = ui_config.get('language', 'en')
+        lang_map = {'az': 'Azərbaycanca', 'en': 'English', 'ru': 'Русский'}
+        self.language_combo.setCurrentText(lang_map.get(lang_code, 'English'))
+        
         # AI settings
         ai_config = self._config.get('ai', {})
         self.motion_threshold_spin.setValue(ai_config.get('motion_threshold', 25))
@@ -631,9 +636,12 @@ class SettingsDialog(QDialog):
     def _apply_settings(self):
         """Ayarları tətbiq edir."""
         # UI
+        lang_map_inv = {'Azərbaycanca': 'az', 'English': 'en', 'Русский': 'ru'}
+        language = lang_map_inv.get(self.language_combo.currentText(), 'en')
+        
         self._config['ui'] = {
             'theme': self.theme_combo.currentText().lower(),
-            'language': 'az'
+            'language': language
         }
         
         # AI

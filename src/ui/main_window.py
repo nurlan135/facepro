@@ -33,6 +33,7 @@ import json
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from src.utils.logger import get_logger
+from src.utils.i18n import tr
 from src.utils.helpers import (
     load_config, load_cameras, save_snapshot, 
     check_internet_connection, get_timestamp
@@ -119,21 +120,21 @@ class StatusPanel(QWidget):
         layout.setContentsMargins(10, 5, 10, 5)
         
         # CPU
-        self.cpu_label = QLabel("CPU: --")
+        self.cpu_label = QLabel(f"{tr('status_cpu')}: --")
         self.cpu_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
         layout.addWidget(self.cpu_label)
         
         layout.addWidget(self._separator())
         
         # RAM
-        self.ram_label = QLabel("RAM: --")
+        self.ram_label = QLabel(f"{tr('status_ram')}: --")
         self.ram_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
         layout.addWidget(self.ram_label)
         
         layout.addWidget(self._separator())
         
         # Storage
-        self.storage_label = QLabel("Storage: --")
+        self.storage_label = QLabel(f"{tr('status_disk')}: --")
         self.storage_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
         layout.addWidget(self.storage_label)
         
@@ -143,7 +144,7 @@ class StatusPanel(QWidget):
         self.internet_indicator = StatusIndicator()
         layout.addWidget(self.internet_indicator)
         
-        self.internet_label = QLabel("Internet")
+        self.internet_label = QLabel(tr('status_net'))
         self.internet_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
         layout.addWidget(self.internet_label)
         
@@ -153,7 +154,7 @@ class StatusPanel(QWidget):
         self.telegram_indicator = StatusIndicator()
         layout.addWidget(self.telegram_indicator)
         
-        self.telegram_label = QLabel("Telegram")
+        self.telegram_label = QLabel(tr('status_telegram'))
         self.telegram_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
         layout.addWidget(self.telegram_label)
         
@@ -163,7 +164,7 @@ class StatusPanel(QWidget):
         self.gsm_indicator = StatusIndicator()
         layout.addWidget(self.gsm_indicator)
         
-        self.gsm_label = QLabel("GSM")
+        self.gsm_label = QLabel(tr('status_gsm'))
         self.gsm_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
         layout.addWidget(self.gsm_label)
     
@@ -181,11 +182,11 @@ class StatusPanel(QWidget):
             
             # CPU
             cpu_percent = psutil.cpu_percent()
-            self.cpu_label.setText(f"CPU: {cpu_percent:.0f}%")
+            self.cpu_label.setText(f"{tr('status_cpu')}: {cpu_percent:.0f}%")
             
             # RAM
             memory = psutil.virtual_memory()
-            self.ram_label.setText(f"RAM: {memory.percent:.0f}%")
+            self.ram_label.setText(f"{tr('status_ram')}: {memory.percent:.0f}%")
             
         except ImportError:
             pass
@@ -193,7 +194,7 @@ class StatusPanel(QWidget):
         # Storage
         cleaner = get_cleaner()
         status = cleaner.get_status()
-        self.storage_label.setText(f"Storage: {status['current_size_mb']:.0f}MB / {status['max_size_mb']:.0f}MB")
+        self.storage_label.setText(f"{tr('status_disk')}: {status['current_size_mb']:.0f}MB / {status['max_size_mb']:.0f}MB")
         
         # Internet
         internet_ok = check_internet_connection()
@@ -293,7 +294,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.start_btn)
         
         # Settings Button
-        settings_btn = QPushButton("Settings")
+        settings_btn = QPushButton(tr('settings_title'))
         settings_btn.setProperty("class", "secondary")
         settings_btn.setFixedWidth(100)
         settings_btn.clicked.connect(self._show_settings)
@@ -310,7 +311,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(10, 10, 10, 10)
         
         # Header
-        header = QLabel("Recent Events")
+        header = QLabel(tr('last_events'))
         header.setStyleSheet(f"""
             color: {COLORS['text_primary']};
             font-size: 14px;
@@ -336,12 +337,12 @@ class MainWindow(QMainWindow):
         # Buttons
         btn_layout = QHBoxLayout()
         
-        clear_btn = QPushButton("Clear All")
+        clear_btn = QPushButton(tr('events_clear'))
         clear_btn.setProperty("class", "secondary")
         clear_btn.clicked.connect(self._clear_events)
         btn_layout.addWidget(clear_btn)
         
-        export_btn = QPushButton("Export")
+        export_btn = QPushButton(tr('events_export'))
         export_btn.setProperty("class", "secondary")
         export_btn.clicked.connect(self._export_events)
         btn_layout.addWidget(export_btn)
@@ -355,20 +356,20 @@ class MainWindow(QMainWindow):
         menubar = self.menuBar()
         
         # File Menu
-        file_menu = menubar.addMenu("File")
+        file_menu = menubar.addMenu(tr('menu_file'))
         
-        settings_action = QAction("Settings", self)
+        settings_action = QAction(tr('settings_title'), self)
         settings_action.triggered.connect(self._show_settings)
         file_menu.addAction(settings_action)
         
         file_menu.addSeparator()
         
-        exit_action = QAction("Exit", self)
+        exit_action = QAction(tr('action_exit'), self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
         
         # View Menu
-        view_menu = menubar.addMenu("View")
+        view_menu = menubar.addMenu(tr('menu_view'))
         
         grid_1_action = QAction("1 Camera", self)
         grid_1_action.triggered.connect(lambda: self.video_grid.set_columns(1))
@@ -385,18 +386,18 @@ class MainWindow(QMainWindow):
         # Faces Menu
         faces_menu = menubar.addMenu("Faces")
         
-        add_face_action = QAction("Add Known Face", self)
+        add_face_action = QAction(tr('action_faces_add'), self)
         add_face_action.triggered.connect(self._add_known_face)
         faces_menu.addAction(add_face_action)
         
-        manage_faces_action = QAction("Manage Faces", self)
+        manage_faces_action = QAction(tr('action_faces_manage'), self)
         manage_faces_action.triggered.connect(self._manage_faces)
         faces_menu.addAction(manage_faces_action)
         
         # Help Menu
-        help_menu = menubar.addMenu("Help")
+        help_menu = menubar.addMenu(tr('menu_help'))
         
-        about_action = QAction("About", self)
+        about_action = QAction(tr('action_license_info'), self)
         about_action.triggered.connect(self._show_about)
         help_menu.addAction(about_action)
     
@@ -672,6 +673,12 @@ class MainWindow(QMainWindow):
             self.status_panel.telegram_indicator.set_status('offline')
         
         logger.info("Settings reloaded")
+        
+        QMessageBox.information(
+            self, 
+            tr('msg_restart_required'),
+            tr('msg_restart_detail')
+        )
     
     def _add_known_face(self):
         """Yeni tanınmış üz əlavə edir."""
@@ -701,8 +708,8 @@ class MainWindow(QMainWindow):
         """About dialoqunu göstərir."""
         QMessageBox.about(
             self, 
-            "About FacePro",
-            """<h2>FacePro v1.0</h2>
+            tr('action_license_info'),
+            f"""<h2>FacePro v1.0</h2>
             <p>Smart Security System with Face Recognition & Re-ID</p>
             <p>© 2025 NurMurDev</p>
             """
@@ -712,7 +719,7 @@ class MainWindow(QMainWindow):
         """Pəncərə bağlanarkən."""
         if self._is_running:
             reply = QMessageBox.question(
-                self, "Confirm Exit",
+                self, tr('action_exit'),
                 "System is running. Are you sure you want to exit?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )

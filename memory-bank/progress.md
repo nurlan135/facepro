@@ -77,7 +77,7 @@
 - [x] GSM fallback trigger logic ✅
 
 ### Low Priority
-- [ ] Multi-language support
+- [x] Multi-language support (AZ, EN, RU) ✅
 - [ ] Light theme option
 - [ ] System tray minimization
 - [ ] Auto-start with Windows
