@@ -41,6 +41,7 @@ from src.ui.face_enrollment import FaceEnrollmentDialog, ManageFacesDialog
 from src.core.camera_thread import CameraWorker, CameraConfig, CameraManager
 from src.core.ai_thread import AIWorker, FrameResult, Detection, DetectionType, draw_detections
 from src.core.cleaner import get_cleaner
+from src.hardware.telegram_notifier import get_telegram_notifier
 
 logger = get_logger()
 
@@ -145,6 +146,16 @@ class StatusPanel(QWidget):
         
         layout.addWidget(self._separator())
         
+        # Telegram Status
+        self.telegram_indicator = StatusIndicator()
+        layout.addWidget(self.telegram_indicator)
+        
+        self.telegram_label = QLabel("Telegram")
+        self.telegram_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
+        layout.addWidget(self.telegram_label)
+        
+        layout.addWidget(self._separator())
+        
         # GSM Status
         self.gsm_indicator = StatusIndicator()
         layout.addWidget(self.gsm_indicator)
@@ -202,6 +213,7 @@ class MainWindow(QMainWindow):
         # Managers
         self._camera_manager = CameraManager()
         self._ai_worker: Optional[AIWorker] = None
+        self._telegram_notifier = get_telegram_notifier()
         
         # State
         self._is_running = False
@@ -433,6 +445,11 @@ class MainWindow(QMainWindow):
         self.start_btn.setText("Stop")
         self.start_btn.setStyleSheet(f"background-color: {COLORS['danger']};")
         
+        # Telegram bildirişi
+        if self._telegram_notifier.is_enabled:
+            self._telegram_notifier.send_startup_message()
+            self.status_panel.telegram_indicator.set_status('online')
+        
         logger.info("System started")
     
     def _stop_system(self):
@@ -454,6 +471,11 @@ class MainWindow(QMainWindow):
         self._is_running = False
         self.start_btn.setText("Start")
         self.start_btn.setStyleSheet("")
+        
+        # Telegram bildirişi
+        if self._telegram_notifier.is_enabled:
+            self._telegram_notifier.send_shutdown_message()
+            self.status_panel.telegram_indicator.set_status('offline')
         
         logger.info("System stopped")
     
@@ -496,8 +518,36 @@ class MainWindow(QMainWindow):
         # Snapshot saxla
         save_snapshot(frame, prefix=detection.label or 'unknown')
         
-        # TODO: Telegram bildiriş
-        # TODO: GSM fallback
+        # Telegram bildirişi
+        self._telegram_notifier.send_detection_alert(
+            frame=frame,
+            label=detection.label or 'Unknown',
+            confidence=detection.confidence,
+            is_known=detection.is_known,
+            camera_name="Camera"  # TODO: Get actual camera name
+        )
+        
+        # GSM Fallback
+        is_online = check_internet_connection()
+        
+        if not is_online:
+            logger.warning("Internet is DOWN. Attempting GSM fallback...")
+            
+            try:
+                from src.hardware.gsm_modem import get_modem
+                modem = get_modem()
+                
+                if not modem.is_connected:
+                    modem.connect()
+                
+                if modem.is_connected:
+                    alert_type = "INTRUSION" if not detection.is_known else "VISITOR"
+                    message = f"FacePro Alert: {alert_type} detected! Object: {detection.label or 'Unknown'}"
+                    modem.send_sms(message)
+                else:
+                    logger.error("GSM Modem not connected, cannot send fallback SMS")
+            except Exception as e:
+                logger.error(f"GSM fallback failed: {e}")
     
     def _add_event(self, event_data: Dict):
         """Events siyahısına yeni element əlavə edir."""
@@ -530,6 +580,20 @@ class MainWindow(QMainWindow):
     def _on_settings_saved(self):
         """Ayarlar saxlanıldıqda."""
         self._config = load_config()
+        
+        # Telegram credentials yenilə
+        telegram_config = self._config.get('telegram', {})
+        self._telegram_notifier.update_credentials(
+            bot_token=telegram_config.get('bot_token', ''),
+            chat_id=telegram_config.get('chat_id', '')
+        )
+        
+        # Status indicator yenilə
+        if self._telegram_notifier.is_enabled:
+            self.status_panel.telegram_indicator.set_status('online')
+        else:
+            self.status_panel.telegram_indicator.set_status('offline')
+        
         logger.info("Settings reloaded")
     
     def _add_known_face(self):

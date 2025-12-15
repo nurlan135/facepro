@@ -42,6 +42,7 @@
 - [x] License file storage
 - [x] Admin keygen script
 - [x] Console activation flow
+- [x] **GUI License Activation Dialog** (modern dark theme)
 
 ### Face Enrollment
 - [x] Image selection via file browser
@@ -55,21 +56,25 @@
 - [x] GSM modem AT command interface
 - [x] COM port detection
 - [x] SMS sending capability
+- [x] **Telegram Bot Notification**
+  - Async mesaj göndərmə
+  - Rate limiting
+  - Şəkilli alert-lər
+  - Test connection UI
+  - **Live Test Verified** ✅
 
 ## What's Left to Build 🚧
 
 ### High Priority
-- [ ] License activation GUI dialog
-- [ ] Telegram bot notification
 - [ ] RTSP camera testing & validation
-- [ ] Verify enrolled faces are recognized
+- [x] Verify enrolled faces are recognized (Verified via script) ✅
 
 ### Medium Priority
 - [ ] Re-ID integration into live pipeline
 - [ ] Event export (CSV/JSON)
 - [ ] Zone/ROI configuration per camera
 - [ ] Settings persistence verification
-- [ ] GSM fallback trigger logic
+- [x] GSM fallback trigger logic ✅
 
 ### Low Priority
 - [ ] Multi-language support
@@ -112,7 +117,6 @@
 2. Error messages need localization
 3. Some Qt stylesheets could be consolidated
 4. Re-ID embeddings not persisted to database yet
-5. License dialog should be GUI, not console
 
 ### Performance Notes
 - YOLO first run downloads model (~6MB)

@@ -1,7 +1,7 @@
 # FacePro - Active Context
 
 ## Current Work Focus
-**Session Date**: 2025-12-15 (Updated: 14:43)
+**Session Date**: 2025-12-15 (Updated: 15:05)
 
 ### Completed This Session
 1. ✅ Project structure created (all directories)
@@ -30,6 +30,18 @@
    - Database storage with pickle serialization
    - Manage Faces dialog for viewing/deleting
 7. ✅ All dependencies installed and working
+8. ✅ **License Activation GUI Dialog implemented**:
+   - `license_dialog.py` - Modern dark theme UI
+   - Machine ID display with copy button
+   - License key input with validation
+   - Integrated into main.py entry point
+9. ✅ **Telegram Notification Integration**:
+   - `telegram_notifier.py` - Async bildiriş modulu
+   - Rate limiting (spam qoruması)
+   - Şəkilli detection alert-ləri
+   - Settings-də Test Connection düyməsi
+   - Status panel-də Telegram indicator
+   - **GSM Fallback Logic**: Offline rejimdə SMS göndərmə (main_window.py) ✅
 
 ### Current Machine License
 - **Machine ID**: E3B0-C442-98FC-1C14
@@ -37,6 +49,7 @@
 - **Status**: Activated ✅
 
 ## Recent Changes
+- License Activation GUI dialog created with modern dark theme
 - Face Enrollment dialog created with full workflow
 - Database SQL queries fixed to match schema (no `role`, no `image_path` columns)
 - AI Worker now loads known faces from database on startup
@@ -45,16 +58,15 @@
 ## Next Steps (Priority Order)
 
 ### Immediate (Next Session)
-1. [ ] License activation dialog (GUI instead of console)
-2. [ ] Telegram notification integration
-3. [ ] Test with real RTSP camera
-4. [ ] Verify face recognition works with enrolled faces
+1. [x] Telegram notification integration (Verified) ✅
+2. [ ] Test with real RTSP camera
+3. [x] Verify face recognition works with enrolled faces (Verified) ✅
 
 ### Short-term
-5. [ ] GSM SMS fallback implementation
-6. [ ] Event export functionality (CSV/JSON)
-7. [ ] Settings persistence verification
-8. [ ] Zone/ROI drawing for cameras
+4. [x] GSM SMS fallback implementation (Implemented in main_window.py) ✅
+5. [ ] Event export functionality (CSV/JSON)
+6. [ ] Settings persistence verification
+7. [ ] Zone/ROI drawing for cameras
 
 ### Medium-term
 9. [ ] Re-ID integration into pipeline

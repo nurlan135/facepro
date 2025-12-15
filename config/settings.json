@@ -2,8 +2,8 @@
     "app_name": "FacePro",
     "version": "1.0.0",
     "telegram": {
-        "bot_token": "",
-        "chat_id": ""
+        "bot_token": "8275886963:AAGrmckSFx20U2Qtiamp-OJf9tZ7ygHYo1M",
+        "chat_id": "486493885"
     },
     "gsm": {
         "enabled": false,

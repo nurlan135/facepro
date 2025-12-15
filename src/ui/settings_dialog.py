@@ -22,6 +22,7 @@ from src.utils.logger import get_logger
 from src.utils.helpers import load_config, save_config, load_cameras, save_cameras, build_rtsp_url
 from src.ui.styles import DARK_THEME, COLORS
 from src.hardware.gsm_modem import GSMModem
+from src.hardware.telegram_notifier import TelegramNotifier
 
 logger = get_logger()
 
@@ -427,9 +428,29 @@ class SettingsDialog(QDialog):
         
         test_telegram_btn = QPushButton("Test Connection")
         test_telegram_btn.setProperty("class", "secondary")
+        test_telegram_btn.clicked.connect(self._test_telegram)
         telegram_layout.addRow("", test_telegram_btn)
         
+        # Telegram Notification Settings
+        notif_group = QGroupBox("Bildiriş Ayarları")
+        notif_layout = QFormLayout(notif_group)
+        
+        self.telegram_enabled_check = QCheckBox("Telegram bildirişlərini aktiv et")
+        notif_layout.addRow("", self.telegram_enabled_check)
+        
+        self.notify_known_check = QCheckBox("Tanınmış şəxslər üçün də bildiriş göndər")
+        self.notify_known_check.setToolTip("Söndürülübsə, yalnız naməlum şəxslər üçün bildiriş gəlir")
+        notif_layout.addRow("", self.notify_known_check)
+        
+        self.notification_interval_spin = QSpinBox()
+        self.notification_interval_spin.setRange(5, 300)
+        self.notification_interval_spin.setSuffix(" saniyə")
+        self.notification_interval_spin.setValue(30)
+        self.notification_interval_spin.setToolTip("Eyni şəxs üçün bildiriş arası minimum fasilə")
+        notif_layout.addRow("Bildiriş intervalı:", self.notification_interval_spin)
+        
         layout.addWidget(telegram_group)
+        layout.addWidget(notif_group)
         
         # GSM
         gsm_group = QGroupBox("GSM Modem (Offline SMS)")
@@ -507,6 +528,9 @@ class SettingsDialog(QDialog):
         telegram_config = self._config.get('telegram', {})
         self.telegram_token_edit.setText(telegram_config.get('bot_token', ''))
         self.telegram_chat_edit.setText(telegram_config.get('chat_id', ''))
+        self.telegram_enabled_check.setChecked(telegram_config.get('enabled', True))
+        self.notify_known_check.setChecked(telegram_config.get('notify_known_persons', False))
+        self.notification_interval_spin.setValue(telegram_config.get('notification_interval', 30))
         
         # GSM
         gsm_config = self._config.get('gsm', {})
@@ -538,6 +562,34 @@ class SettingsDialog(QDialog):
         self.gsm_port_combo.clear()
         for port in ports:
             self.gsm_port_combo.addItem(f"{port['port']} - {port['description']}", port['port'])
+    
+    def _test_telegram(self):
+        """Telegram bağlantısını test edir."""
+        token = self.telegram_token_edit.text().strip()
+        chat_id = self.telegram_chat_edit.text().strip()
+        
+        if not token or not chat_id:
+            QMessageBox.warning(
+                self, "Error",
+                "Please enter both Bot Token and Chat ID."
+            )
+            return
+        
+        # Test notifier yaratmaq
+        notifier = TelegramNotifier(bot_token=token, chat_id=chat_id)
+        success, message = notifier.test_connection()
+        notifier.stop()
+        
+        if success:
+            QMessageBox.information(
+                self, "Success",
+                f"✅ {message}\n\nTest mesajı Telegram-a göndərildi!"
+            )
+        else:
+            QMessageBox.critical(
+                self, "Error",
+                f"❌ {message}"
+            )
     
     def _add_camera(self):
         """Yeni kamera əlavə edir."""
