@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+
+# PyInstaller
+*.spec
+dist/
+build/
+
+# FacePro specific
+.license
+*.db
+data/faces/*
+data/logs/*
+models/*
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+Desktop.ini

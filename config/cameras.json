@@ -1,0 +1,9 @@
+{
+    "cameras": [
+        {
+            "name": "Webcam",
+            "source": "0",
+            "type": "Webcam"
+        }
+    ]
+}
