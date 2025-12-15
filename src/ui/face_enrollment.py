@@ -407,12 +407,10 @@ class FaceEnrollmentDialog(QDialog):
     def _save_to_database(self, name: str, encoding: np.ndarray, image_path: str):
         """Üz məlumatlarını database-ə saxlayır."""
         import sqlite3
+        from src.utils.helpers import get_db_path
         import pickle
         
-        db_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            'data', 'db', 'faceguard.db'
-        )
+        db_path = get_db_path()
         
         try:
             conn = sqlite3.connect(db_path)
@@ -519,10 +517,9 @@ class ManageFacesDialog(QDialog):
         """Database-dən üzləri yükləyir."""
         import sqlite3
         
-        db_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            'data', 'db', 'faceguard.db'
-        )
+        from src.utils.helpers import get_db_path
+        
+        db_path = get_db_path()
         
         try:
             conn = sqlite3.connect(db_path)
@@ -578,10 +575,9 @@ class ManageFacesDialog(QDialog):
         """Database-dən üzü silir."""
         import sqlite3
         
-        db_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            'data', 'db', 'faceguard.db'
-        )
+        from src.utils.helpers import get_db_path
+        
+        db_path = get_db_path()
         
         try:
             conn = sqlite3.connect(db_path)

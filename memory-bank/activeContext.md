@@ -52,31 +52,31 @@
 - **Status**: Activated ✅
 
 ## Recent Changes
-- License Activation GUI dialog created with modern dark theme
-- Face Enrollment dialog created with full workflow
-- Database SQL queries fixed to match schema (no `role`, no `image_path` columns)
-- AI Worker now loads known faces from database on startup
-- Faces menu integrated: Add Known Face + Manage Faces
+- **License Hardening:** Implemented strict hardware binding (UUID + Volume Serial + CPU ID) to prevent unauthorized copying.
+- **Installer Creation:** Created `build_exe.py` and `create_setup.py` to generate a standalone `FacePro_Setup_v1.0.exe` installer.
+- **Path Handling Fixes:** Implemented `get_db_path()` and `_ensure_db_initialized()` to handle database creation correctly in "frozen" (exe) mode and fix "no such table" errors.
+- **Offline Support:** Ensured `yolov8n.pt` and face recognition models are bundled within the installer.
+- **Window Flickering Fix:** Suppressed console window flickering for background processes (ping, wmic) in Windows.
 
-## Next Steps (Priority Order)
+## Active Decisions
+- **Database Path:** The database is now located at `data/db/facepro.db` relative to the executable (or `_internal` folder), ensuring portability.
+- **Installer Strategy:** Using a custom Python script (`create_setup.py`) wrapping PyInstaller-generated files into a self-extracting executable for simplicity without external dependencies (like Inno Setup).
+- **License Key:** License keys are now tied to a robust Machine ID valid only on the specific hardware.
 
-### Immediate (Next Session)
-1. [x] Telegram notification integration (Verified) ✅
-2. [ ] Test with real RTSP camera
-3. [x] Verify face recognition works with enrolled faces (Verified) ✅
+## Current Focus
+Transitioning from Development to Deployment/Release phase. The core functionality and packaging are complete.
 
-### Short-term
-4. [x] GSM SMS fallback implementation (Implemented in main_window.py) ✅
-5. [x] Event export functionality (CSV/JSON) ✅
-6. [ ] Settings persistence verification
-7. [ ] Zone/ROI drawing for cameras
+## Next Steps
+1.  **User Documentation:** Create a user manual (PDF/HTML) to include with the installer.
+2.  **Refurbished Mini PC Bundle:** (Business Task) Prepare the "FacePro AI Box" strategy.
+3.  **Final Testing:** Full end-to-end test on a fresh machine (Virtual Machine) to verify the installer.
+ ✅
 
 ### Medium-term
 9. [x] Re-ID integration into pipeline ✅
 10. [ ] Performance optimization
 11. [x] Multi-language support (AZ, EN, RU) ✅
-12. [ ] Installer/deployment package
-
+13. [ ] License Hardening (Hardware-locked + Machine ID binding)
 ## Active Decisions
 
 ### License System

@@ -37,11 +37,22 @@
 
 ### License System
 - [x] Machine ID generation (CPU + Motherboard hash)
-- [x] License key generation (Base32 encoded)
-- [x] Key validation
-- [x] License file storage
-- [x] Admin keygen script
-- [x] Console activation flow
+- [x] License key generation (Base32## Deployment & Security
+- [x] License system implementation (Hardware-locked)
+- [x] Installer package creation (`python create_setup.py`)
+- [x] Executable build script (`python build_exe.py`)
+- [x] Offline model bundling (YOLO, Face Rec)
+- [ ] Obfuscation (Optional)
+
+## Documentation
+- [x] Developer Docs (`memory-bank`)
+- [ ] User Manual (PDF)
+- [ ] Installation Guide
+
+## Known Issues
+- [x] ~~No "no such table" error on fresh install~~ (Fixed via `_ensure_db_initialized`)
+- [x] ~~Console window flickering~~ (Fixed via `CREATE_NO_WINDOW` flags)
+- [ ] Camera reconnection delay (Minor)
 - [x] **GUI License Activation Dialog** (modern dark theme)
 
 ### Face Enrollment
@@ -72,7 +83,7 @@
 ### Medium Priority
 - [x] Re-ID integration into live pipeline ✅
 - [x] Event export (CSV/JSON) ✅
-- [ ] Zone/ROI configuration per camera
+- [x] Zone/ROI configuration per camera ✅
 - [ ] Settings persistence verification
 - [x] GSM fallback trigger logic ✅
 

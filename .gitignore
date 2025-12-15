@@ -25,3 +25,8 @@ models/*
 # OS
 Thumbs.db
 Desktop.ini
+
+# Installer files
+payload.zip
+*.exe
+*.pkg

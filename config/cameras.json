@@ -3,7 +3,8 @@
         {
             "name": "Webcam",
             "source": "0",
-            "type": "Webcam"
+            "type": "Webcam",
+            "roi_points": []
         }
     ]
 }

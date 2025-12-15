@@ -24,79 +24,89 @@ _SECRET_SALT = "FaceGuard_v1_$uper$ecure_2025!"
 _LICENSE_FILE = ".license"
 
 
-def _run_wmic_command(command: str) -> str:
+def _run_command(command: str) -> str:
     """
-    Windows wmic komandasını işlədir.
-    
-    Args:
-        command: wmic komandası
+    Skel shell komandasını işlədir.
+    """
+    # Konsol pəncərəsini gizlətmək üçün flags
+    startupinfo = None
+    if platform.system() == "Windows":
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         
-    Returns:
-        Çıxış mətni (təmizlənmiş)
-    """
     try:
         result = subprocess.run(
             command,
             capture_output=True,
             text=True,
             shell=True,
-            timeout=10
+            timeout=5,
+            startupinfo=startupinfo,
+            creationflags=subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
         )
-        # İlk sətir başlıqdır, ikinci sətir dəyərdir
-        lines = result.stdout.strip().split('\n')
-        if len(lines) >= 2:
-            return lines[1].strip()
-        return ""
+        return result.stdout.strip()
     except Exception:
         return ""
 
-
-def _get_cpu_id() -> str:
-    """CPU Processor ID-ni əldə edir (Windows)."""
+def _get_system_uuid() -> str:
+    """Windows System UUID əldə edir (Ən stabil unikal ID)."""
     if platform.system() == "Windows":
-        return _run_wmic_command("wmic cpu get processorid")
-    else:
-        # Linux/Mac üçün alternativ
+        # wmic csproduct get uuid
         try:
-            with open('/etc/machine-id', 'r') as f:
-                return f.read().strip()[:16]
+            output = _run_command("wmic csproduct get uuid")
+            # Output adətən belə olur:
+            # UUID
+            # 4C4C4544-0042-4410-8053-C7C04F355032
+            lines = output.split('\n')
+            if len(lines) >= 2:
+                return lines[1].strip()
         except:
-            return "UNKNOWN_CPU"
+            pass
+            
+        # Fallback: Powershell
+        try:
+            ps_cmd = 'powershell -command "Get-WmiObject Win32_ComputerSystemProduct | Select-Object -ExpandProperty UUID"'
+            return _run_command(ps_cmd)
+        except:
+            pass
+            
+    return "UNKNOWN_UUID"
 
-
-def _get_motherboard_id() -> str:
-    """Motherboard Serial Number-ı əldə edir (Windows)."""
+def _get_volume_serial() -> str:
+    """C: diskinin serial nömrəsini alır."""
     if platform.system() == "Windows":
-        return _run_wmic_command("wmic baseboard get serialnumber")
-    else:
-        # Linux/Mac üçün alternativ
         try:
-            result = subprocess.run(
-                ['sudo', 'dmidecode', '-s', 'baseboard-serial-number'],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            return result.stdout.strip()
+            output = _run_command("vol c:")
+            # Output: Volume Serial Number is XXXX-XXXX
+            if "Serial Number is" in output:
+                return output.split("Serial Number is")[-1].strip()
         except:
-            return "UNKNOWN_MB"
-
+            pass
+    return "UNKNOWN_VOL"
 
 def get_machine_id() -> str:
     """
-    Maşın ID-sini yaradır.
+    Maşın ID-sini yaradır (Təkmilləşdirilmiş).
+    
+    Kombinasiya: System UUID + Disk Serial (Daha stabil)
+    CpuId və MotherboardId bəzən dəyişmir (Generic olur).
     
     Format: XXXX-XXXX-XXXX-XXXX (16 char, uppercase)
-    
-    Returns:
-        Formatlanmış Machine ID
     """
     # Hardware məlumatlarını yığ
-    cpu_id = _get_cpu_id()
-    mb_id = _get_motherboard_id()
+    uuid = _get_system_uuid()
+    vol_serial = _get_volume_serial()
     
-    # Kombinə et
-    source_data = f"{cpu_id}{mb_id}"
+    # Əlavə təhlükəsizlik: CPU ProcessorID (fallback)
+    cpu_id = _run_command("wmic cpu get processorid")
+    if len(cpu_id.split('\n')) >= 2:
+        cpu_id = cpu_id.split('\n')[1].strip()
+    else:
+        cpu_id = "GENERIC_CPU"
+    
+    # Kombinə et (UUID əsasdır, digərləri duz kimi)
+    # UUID boşdursa və ya genericdirsə, digərlərinə güvənirik
+    source_data = f"{uuid}|{vol_serial}|{cpu_id}"
     
     # SHA-256 hash
     hash_bytes = hashlib.sha256(source_data.encode('utf-8')).hexdigest()

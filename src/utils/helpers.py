@@ -349,11 +349,22 @@ def check_internet_connection(host: str = "8.8.8.8", timeout: int = 3) -> bool:
         param = '-n' if platform.system().lower() == 'windows' else '-c'
         
         command = ['ping', param, '1', '-w', str(timeout * 1000), host]
+        
+        # Pəncərəni gizlət
+        startupinfo = None
+        creationflags = 0
+        if platform.system().lower() == 'windows':
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            creationflags = subprocess.CREATE_NO_WINDOW
+            
         result = subprocess.run(
             command, 
             stdout=subprocess.DEVNULL, 
             stderr=subprocess.DEVNULL,
-            timeout=timeout + 1
+            timeout=timeout + 1,
+            startupinfo=startupinfo,
+            creationflags=creationflags
         )
         
         return result.returncode == 0
@@ -416,5 +427,111 @@ if __name__ == "__main__":
     url = build_rtsp_url("192.168.1.100", "admin", "password123", brand="hikvision")
     print(f"RTSP URL: {url}")
     
-    # Timestamp test
     print(f"Timestamp: {get_timestamp()}")
+
+# =============================================================================
+# Path Helpers
+# =============================================================================
+
+def get_app_root() -> str:
+    """
+    Tətbiqin kök qovluğunu qaytarır.
+    PyInstaller ("frozen") və ya Source rejimini nəzərə alır.
+    """
+    import sys
+    if getattr(sys, 'frozen', False):
+        # EXE işləyir
+        return os.path.dirname(sys.executable)
+    else:
+        # Source code işləyir (src/utils/helpers.py -> ../../)
+        return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+
+
+def _ensure_db_initialized(db_path: str):
+    """Cədvəlləri yaradır (əgər yoxdursa)."""
+    import sqlite3
+    
+    # Fayl boşdursa və ya cədvəllər yoxdursa
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Users table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Face Encodings table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS face_encodings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                encoding BLOB NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+        """)
+        
+        # Events table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                object_label TEXT,
+                confidence REAL,
+                snapshot_path TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Re-ID Embeddings table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS reid_embeddings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                embedding BLOB NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+        """)
+        
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Failed to initialize DB: {e}")
+
+
+def get_db_path() -> str:
+    """
+    DB faylının tam yolunu qaytarır.
+    Yol: {APP_ROOT}/data/db/facepro.db
+    """
+    root = get_app_root()
+    db_path = os.path.join(root, "data", "db", "facepro.db")
+    
+    # Qovluq yoxdursa yarat (Parent qovluqlar)
+    try:
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    except:
+        pass
+        
+    # DB strukturunu yoxla/yarat
+    _ensure_db_initialized(db_path)
+    
+    return db_path
+
+def get_faces_dir() -> str:
+    """Faces qovluğunun tam yolunu qaytarır."""
+    root = get_app_root()
+    faces_dir = os.path.join(root, "data", "faces")
+    try:
+        os.makedirs(faces_dir, exist_ok=True)
+    except:
+        pass
+    return faces_dir

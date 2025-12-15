@@ -137,17 +137,95 @@ class VideoWidget(QLabel):
         """Cari FPS-i qaytarır."""
         return self._fps
     
+    def set_drawing_mode(self, enabled: bool):
+        """Drawing rejimini aktivləşdirir."""
+        self._drawing_mode = enabled
+        self._roi_points = []
+        self._normalized_roi_points = []
+        self.setMouseTracking(enabled)
+        if enabled:
+            self.setCursor(Qt.CursorShape.CrossCursor)
+        else:
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+
+    def set_roi_points(self, points: list):
+        """Mövcud ROI nöqtələrini təyin edir (metod qəbul edir: [(x, y), ...])."""
+        self._normalized_roi_points = points
+        self.update()
+
+    def get_roi_points(self) -> list:
+        """Normalizasiya olunmuş ROI nöqtələrini qaytarır."""
+        return self._normalized_roi_points
+
+    def mousePressEvent(self, event):
+        """Mouse click event handler."""
+        if getattr(self, '_drawing_mode', False):
+            if event.button() == Qt.MouseButton.LeftButton:
+                pos = event.position()
+                x = pos.x()
+                y = pos.y()
+                
+                # Normalizasiya olunmuş koordinatları hesabla
+                norm_x = x / self.width()
+                norm_y = y / self.height()
+                
+                self._roi_points.append((x, y))
+                self._normalized_roi_points.append((norm_x, norm_y))
+                self.update()
+                
+            elif event.button() == Qt.MouseButton.RightButton:
+                # Sağ klik ilə son nöqtəni sil
+                if self._roi_points:
+                    self._roi_points.pop()
+                    self._normalized_roi_points.pop()
+                    self.update()
+
+        super().mousePressEvent(event)
+
     def mouseReleaseEvent(self, event):
         """Mouse release event handler."""
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit()
+        if not getattr(self, '_drawing_mode', False):
+            if event.button() == Qt.MouseButton.LeftButton:
+                self.clicked.emit()
         super().mouseReleaseEvent(event)
     
     def mouseDoubleClickEvent(self, event):
         """Mouse double-click event handler."""
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.double_clicked.emit()
+        if not getattr(self, '_drawing_mode', False):
+            if event.button() == Qt.MouseButton.LeftButton:
+                self.double_clicked.emit()
         super().mouseDoubleClickEvent(event)
+        
+    def paintEvent(self, event):
+        """Paint event override - ROI çəkmək üçün."""
+        super().paintEvent(event)
+        
+        # Əgər ROI nöqtələri varsa, çək
+        points = getattr(self, '_normalized_roi_points', [])
+        if points:
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            
+            # Koordinatları pikselə çevir
+            pixel_points = []
+            w, h = self.width(), self.height()
+            
+            from PyQt6.QtCore import QPoint
+            
+            for nx, ny in points:
+                pixel_points.append(QPoint(int(nx * w), int(ny * h)))
+                
+            # Poliqon çək
+            if len(pixel_points) > 1:
+                painter.setPen(QColor(0, 255, 0, 200))  # Yaşıl xətt
+                painter.setBrush(QColor(0, 255, 0, 50)) # Şəffaf yaşıl
+                painter.drawPolygon(pixel_points)
+                
+            # Nöqtələri çək
+            painter.setBrush(QColor(255, 0, 0)) # Qırmızı nöqtələr
+            painter.setPen(Qt.PenStyle.NoPen)
+            for p in pixel_points:
+                painter.drawEllipse(p, 4, 4)
 
 
 class VideoGrid(QWidget):

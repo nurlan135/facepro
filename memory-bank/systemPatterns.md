@@ -34,6 +34,23 @@ Main Thread (UI)
             └── FIFO cleanup on interval
 ```
 
+### Deployment & Licensing
+- **Packaging:**
+    - Use `PyInstaller` (One-Dir mode) to collect dependencies.
+    - Use `create_setup.py` (Custom Python Script) to zip payload and create a self-extracting installer GUI.
+- **Licensing:**
+    - Hardware-locked (CPU + MB + UUID).
+    - Checks on startup (`main.py`).
+    - Admin Keygen (`admin_keygen.py`) generates keys based on client Machine ID.
+- **Path Management:**
+    - Use `src/utils/helpers.py:get_app_root()` to determine runtime environment (Source vs Frozen).
+    - Use `get_db_path()` to ensure database portability.
+    - Auto-initialize database schema if missing (Self-Healing).
+
+## Refactoring targets
+- Consolidate all database operations into `DatabaseManager` class (currently scattered/helper-based).
+- Move UI-specific business logic (like enrollment) fully into Controllers or Services.
+
 ## Key Design Patterns
 
 ### 1. Singleton Pattern

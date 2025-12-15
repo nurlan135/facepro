@@ -36,7 +36,8 @@ from src.utils.logger import get_logger
 from src.utils.i18n import tr
 from src.utils.helpers import (
     load_config, load_cameras, save_snapshot, 
-    check_internet_connection, get_timestamp
+    check_internet_connection, get_timestamp,
+    get_db_path, get_faces_dir
 )
 from src.ui.styles import DARK_THEME, COLORS, apply_theme
 from src.ui.video_widget import VideoWidget, VideoGrid, StatusIndicator
@@ -429,11 +430,18 @@ class MainWindow(QMainWindow):
             config = CameraConfig(
                 source=cam_data['source'],
                 name=cam_data['name'],
-                target_fps=self._config.get('camera', {}).get('target_fps', 30)
+                target_fps=self._config.get('camera', {}).get('target_fps', 30),
+                roi_points=cam_data.get('roi_points')
             )
+            
+            # ROI varsa AI-ya bildir
+            if config.roi_points:
+                self._ai_worker.set_camera_roi(config.name, config.roi_points)
             
             # Video widget əlavə et
             video_widget = self.video_grid.add_camera_view(config.name)
+            if config.roi_points:
+                video_widget.set_roi_points(config.roi_points)
             
             # Camera worker əlavə et və başlat
             worker = self._camera_manager.add_camera(config)
@@ -581,10 +589,7 @@ class MainWindow(QMainWindow):
     def _log_event_to_db(self, event_type: str, object_label: str, confidence: float, snapshot_path: Optional[str]):
         """Hadisəni database-ə yazır."""
         try:
-            db_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                'data', 'db', 'faceguard.db'
-            )
+            db_path = get_db_path()
             
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
@@ -613,10 +618,7 @@ class MainWindow(QMainWindow):
             
         try:
             # DB-dən oxu
-            db_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                'data', 'db', 'faceguard.db'
-            )
+            db_path = get_db_path()
             
             conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row  # Dict kimi oxumaq üçün

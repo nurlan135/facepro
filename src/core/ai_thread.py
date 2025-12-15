@@ -18,7 +18,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from src.utils.logger import get_logger
-from src.utils.helpers import crop_person
+from src.utils.helpers import crop_person, get_db_path
 from src.core.reid_engine import get_reid_engine, ReIDEngine
 
 logger = get_logger()
@@ -349,11 +349,9 @@ class FaceRecognizer:
         import sqlite3
         import pickle
         
-        db_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            'data', 'db', 'faceguard.db'
-        )
+        import pickle
         
+        db_path = get_db_path()
         if not os.path.exists(db_path):
             logger.warning("Database not found, no faces loaded")
             return 0
@@ -428,7 +426,11 @@ class AIWorker(QThread):
         self._reid_engine = get_reid_engine()
         
         # Re-ID Cache: {user_id: [embedding]}
+        # Re-ID Cache: {user_id: [embedding]}
         self._reid_embeddings: List[Tuple[int, int, str, np.ndarray]] = []  # (emb_id, user_id, user_name, embedding)
+        
+        # Camera ROIs: {camera_name: [(x, y), ...]} normalized
+        self._camera_rois: Dict[str, List[Tuple[float, float]]] = {}
         
         # Settings
         self._skip_motion_check = False  # Debug üçün
@@ -517,7 +519,24 @@ class AIWorker(QThread):
         detections = self._object_detector.detect(frame)
         
         # 3. Face Recognition (hər person üçün)
+        # Filter by ROI if exists
+        final_detections = []
+        roi_points = self._camera_rois.get(camera_name)
+        
         for detection in detections:
+            # Check ROI
+            if roi_points:
+                x1, y1, x2, y2 = detection.bbox
+                center_x = (x1 + x2) / 2
+                center_y = (y1 + y2) / 2
+                
+                # Normalize center
+                h, w = frame.shape[:2]
+                norm_center = (center_x / w, center_y / h)
+                
+                if not self._is_inside_roi(norm_center, roi_points):
+                    continue
+
             if detection.type == DetectionType.PERSON:
                 name, confidence, face_visible = self._face_recognizer.recognize(frame, detection.bbox)
                 
@@ -544,8 +563,10 @@ class AIWorker(QThread):
                                 detection.is_known = True
                                 detection.confidence = match.confidence
                                 logger.info(f"Re-ID matched: {match.user_name} ({match.confidence:.2%})")
+            
+            final_detections.append(detection)
         
-        result.detections = detections
+        result.detections = final_detections
         result.processing_time_ms = (time.time() - start_time) * 1000
         
         return result
@@ -570,6 +591,35 @@ class AIWorker(QThread):
         self._running = False
         self.wait(5000)
     
+    def set_camera_roi(self, camera_name: str, points: List[Tuple[float, float]]):
+        """Kamera üçün ROI təyin edir."""
+        if points and len(points) >= 3:
+            self._camera_rois[camera_name] = points
+            logger.info(f"ROI set for {camera_name}: {len(points)} points")
+        else:
+            if camera_name in self._camera_rois:
+                del self._camera_rois[camera_name]
+    
+    def _is_inside_roi(self, point: Tuple[float, float], roi_points: List[Tuple[float, float]]) -> bool:
+        """Nöqtənin ROI daxilində olub-olmadığını yoxlayır."""
+        # Ray casting algorithm
+        x, y = point
+        inside = False
+        j = len(roi_points) - 1
+        
+        for i in range(len(roi_points)):
+            xi, yi = roi_points[i]
+            xj, yj = roi_points[j]
+            
+            intersect = ((yi > y) != (yj > y)) and \
+                (x < (xj - xi) * (y - yi) / (yj - yi) + xi)
+            
+            if intersect:
+                inside = not inside
+            j = i
+            
+        return inside
+        
     def pause(self):
         """Thread-i pauzaya alır."""
         with QMutexLocker(self._mutex):
@@ -585,10 +635,9 @@ class AIWorker(QThread):
         import sqlite3
         import pickle
         
-        db_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            'data', 'db', 'faceguard.db'
-        )
+        import pickle
+        
+        db_path = get_db_path()
         
         try:
             conn = sqlite3.connect(db_path)

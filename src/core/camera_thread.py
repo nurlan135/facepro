@@ -29,6 +29,7 @@ class CameraConfig:
     target_fps: int = 30
     reconnect_interval: int = 5  # saniyə
     timeout: int = 10  # saniyə
+    roi_points: Optional[list] = None  # [(x,y), ...] normalized 0-1
 
 
 class CameraWorker(QThread):

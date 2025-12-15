@@ -32,24 +32,6 @@
 4. VC++ Redistributable (for PyTorch)
 
 ### Installation Steps
-```bash
-# Clone repository
-git clone <repo_url>
-cd facepro
-
-# Create virtual environment
-python -m venv venv
-.\venv\Scripts\activate  # Windows
-
-# Install dependencies
-pip install PyQt6 opencv-python numpy Pillow pyserial requests schedule psutil
-pip install torch torchvision ultralytics
-pip install dlib face_recognition  # Requires VS Build Tools + CMake
-
-# Initialize database
-python data/db/init_db.py
-
-# Run application
 python main.py
 ```
 

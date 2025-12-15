@@ -23,7 +23,9 @@ from src.utils.helpers import load_config, save_config, load_cameras, save_camer
 from src.ui.styles import DARK_THEME, COLORS
 from src.hardware.gsm_modem import GSMModem
 from src.hardware.telegram_notifier import TelegramNotifier
+from src.hardware.telegram_notifier import TelegramNotifier
 from src.utils.i18n import tr
+from src.ui.zone_editor import ZoneEditorDialog
 
 logger = get_logger()
 
@@ -144,7 +146,14 @@ class CameraDialog(QDialog):
         self.password_edit.textChanged.connect(self._update_url)
         self.brand_combo.currentIndexChanged.connect(self._update_url)
         self.channel_spin.valueChanged.connect(self._update_url)
+        self.brand_combo.currentIndexChanged.connect(self._update_url)
+        self.channel_spin.valueChanged.connect(self._update_url)
         self.stream_combo.currentIndexChanged.connect(self._update_url)
+        
+        # Zone Settings
+        zone_btn = QPushButton("Set Detection Zone (ROI)")
+        zone_btn.clicked.connect(self._set_zone)
+        form.addRow("Zone:", zone_btn)
         
         # Buttons
         btn_layout = QHBoxLayout()
@@ -231,7 +240,8 @@ class CameraDialog(QDialog):
         self._camera_data = {
             'name': name,
             'source': source,
-            'type': self.type_combo.currentText()
+            'type': self.type_combo.currentText(),
+            'roi_points': self._camera_data.get('roi_points', [])
         }
         
         self.accept()
@@ -239,6 +249,18 @@ class CameraDialog(QDialog):
     def get_camera_data(self) -> Dict:
         """Kamera data-sını qaytarır."""
         return self._camera_data
+        
+    def _set_zone(self):
+        """Zone editor-u açır."""
+        # Cari URL-i yenilə (redaktə olunmuş ola bilər)
+        self._update_url()
+        temp_data = self._camera_data.copy()
+        temp_data['source'] = self.url_edit.text()
+        
+        dialog = ZoneEditorDialog(temp_data, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._camera_data['roi_points'] = dialog.get_roi_points()
+            QMessageBox.information(self, "Success", "Zone updated.")
 
 
 class SettingsDialog(QDialog):
