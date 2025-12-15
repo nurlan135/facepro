@@ -80,19 +80,30 @@ FacePro/
     │   └── reid_engine.py    # Person Re-ID
     │
     ├── hardware/
-    │   └── gsm_modem.py      # SMS via AT commands
+    │   ├── gsm_modem.py      # SMS via AT commands
+    │   └── telegram_notifier.py # Telegram notifications
     │
     ├── ui/
-    │   ├── main_window.py    # Main dashboard
-    │   ├── video_widget.py   # Video display
+    │   ├── main_window.py    # Main dashboard coordinator
+    │   ├── video_widget.py   # Video display, VideoGrid
     │   ├── settings_dialog.py # Settings UI
-    │   ├── face_enrollment.py # Face enrollment dialog (NEW)
-    │   └── styles.py         # Dark theme
+    │   ├── face_enrollment.py # Face enrollment dialogs
+    │   ├── license_dialog.py  # License activation UI
+    │   ├── zone_editor.py     # ROI zone editing
+    │   ├── styles.py         # Dark theme
+    │   └── dashboard/        # Modular UI components
+    │       ├── __init__.py
+    │       ├── widgets.py    # ActivityItem, ActionCard
+    │       ├── sidebar.py    # SidebarWidget
+    │       ├── home_page.py  # HomePage
+    │       ├── camera_page.py # CameraPage
+    │       └── logs_page.py  # LogsPage with filters
     │
     └── utils/
         ├── logger.py         # Centralized logging
         ├── helpers.py        # Utility functions
-        └── license_manager.py # License validation
+        ├── license_manager.py # License validation
+        └── i18n.py           # Internationalization (EN, AZ, RU)
 ```
 
 ## Technical Constraints

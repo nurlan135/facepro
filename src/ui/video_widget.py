@@ -323,6 +323,13 @@ class VideoGrid(QWidget):
             col = i % self._columns
             self._layout.addWidget(widget, row, col)
     
+    def clear_all(self):
+        """Bütün kamera görünüşlərini silir."""
+        for name in list(self._widgets.keys()):
+            widget = self._widgets.pop(name)
+            self._layout.removeWidget(widget)
+            widget.deleteLater()
+    
     @property
     def camera_names(self) -> list:
         """Kamera adlarının siyahısı."""

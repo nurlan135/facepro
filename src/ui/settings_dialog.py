@@ -24,7 +24,7 @@ from src.ui.styles import DARK_THEME, COLORS
 from src.hardware.gsm_modem import GSMModem
 from src.hardware.telegram_notifier import TelegramNotifier
 from src.hardware.telegram_notifier import TelegramNotifier
-from src.utils.i18n import tr
+from src.utils.i18n import tr, set_language
 from src.ui.zone_editor import ZoneEditorDialog
 
 logger = get_logger()
@@ -707,6 +707,11 @@ class SettingsDialog(QDialog):
         # Save
         save_config(self._config)
         save_cameras(self._cameras)
+        
+        # Trigger live language update
+        lang_map_inv = {'Azərbaycanca': 'az', 'English': 'en', 'Русский': 'ru'}
+        new_language = lang_map_inv.get(self.language_combo.currentText(), 'en')
+        set_language(new_language)
         
         self.settings_saved.emit()
         logger.info("Settings saved")

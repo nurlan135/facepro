@@ -217,7 +217,8 @@ class LicenseActivationDialog(QDialog):
         self.status_label = QLabel("")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_label.setStyleSheet("color: #94a3b8; font-size: 13px; font-weight: 500;")
-        self.status_label.setFixedHeight(20)
+        self.status_label.setWordWrap(True)  # Enable multi-line text
+        self.status_label.setMinimumHeight(40) # Give it space
         layout.addWidget(self.status_label)
         
         # Buttons
@@ -263,6 +264,11 @@ class LicenseActivationDialog(QDialog):
         self._show_status("Verifying license...", "#38bdf8")
         QApplication.processEvents()
         
+        machine_id = get_machine_id()
+        # DEBUG: Expected key-i hesabla
+        from src.utils.license_manager import generate_license_key
+        expected_dbg = generate_license_key(machine_id)
+        
         success, message = activate_license(clean_key)
         
         if success:
@@ -270,7 +276,7 @@ class LicenseActivationDialog(QDialog):
             self.license_activated.emit()
             self.accept()
         else:
-            self._show_status("Activation Failed: Invalid Key", "#f87171")
+            self._show_status(f"Error: {message} (Exp: {expected_dbg})", "#f87171")
             
     def _exit_app(self):
         self.reject()

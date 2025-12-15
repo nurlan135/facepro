@@ -1,6 +1,6 @@
 """
 FacePro Main Window Module
-Əsas Dashboard UI pəncərəsi.
+Əsas Dashboard UI pəncərəsi - Refactored.
 """
 
 from typing import Optional, Dict
@@ -8,12 +8,12 @@ from datetime import datetime
 
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QStatusBar, QMenuBar, QMenu,
-    QSplitter, QListWidget, QListWidgetItem, QFrame,
-    QToolBar, QMessageBox, QFileDialog, QSystemTrayIcon
+    QLabel, QPushButton, QListWidgetItem,
+    QMessageBox, QFileDialog, QSystemTrayIcon, QStyle, QApplication,
+    QStackedWidget, QTabWidget, QMenu
 )
-from PyQt6.QtCore import Qt, QTimer, pyqtSlot
-from PyQt6.QtGui import QAction, QIcon, QPixmap
+from PyQt6.QtCore import Qt, QTimer, pyqtSlot, pyqtSignal
+from PyQt6.QtGui import QAction, QIcon
 
 # Optional imports for OpenCV and NumPy
 try:
@@ -33,181 +33,27 @@ import json
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from src.utils.logger import get_logger
-from src.utils.i18n import tr
+from src.utils.i18n import tr, get_translator
 from src.utils.helpers import (
     load_config, load_cameras, save_snapshot, 
-    check_internet_connection, get_timestamp,
-    get_db_path, get_faces_dir
+    get_timestamp, get_db_path
 )
-from src.ui.styles import DARK_THEME, COLORS, apply_theme
-from src.ui.video_widget import VideoWidget, VideoGrid, StatusIndicator
+from src.ui.styles import DARK_THEME, COLORS
 from src.ui.settings_dialog import SettingsDialog
 from src.ui.face_enrollment import FaceEnrollmentDialog, ManageFacesDialog
-from src.core.camera_thread import CameraWorker, CameraConfig, CameraManager
+from src.core.camera_thread import CameraConfig, CameraManager
 from src.core.ai_thread import AIWorker, FrameResult, Detection, DetectionType, draw_detections
 from src.core.cleaner import get_cleaner
 from src.hardware.telegram_notifier import get_telegram_notifier
 
+# Dashboard components
+from src.ui.dashboard import SidebarWidget, HomePage, CameraPage, LogsPage, ActivityItem
+
 logger = get_logger()
 
 
-class EventListItem(QWidget):
-    """Hadisə siyahısı elementi."""
-    
-    def __init__(self, event_data: Dict, parent=None):
-        super().__init__(parent)
-        
-        self._event_data = event_data
-        self._setup_ui()
-    
-    def _setup_ui(self):
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(5, 5, 5, 5)
-        
-        # Thumbnail
-        self.thumbnail = QLabel()
-        self.thumbnail.setFixedSize(60, 45)
-        self.thumbnail.setStyleSheet(f"""
-            background-color: {COLORS['bg_light']};
-            border-radius: 4px;
-        """)
-        
-        if 'snapshot' in self._event_data and self._event_data['snapshot'] is not None:
-            # Show thumbnail
-            pass
-        
-        layout.addWidget(self.thumbnail)
-        
-        # Info
-        info_layout = QVBoxLayout()
-        info_layout.setSpacing(2)
-        
-        # Label
-        label = QLabel(self._event_data.get('label', 'Unknown'))
-        label.setStyleSheet(f"color: {COLORS['text_primary']}; font-weight: bold;")
-        info_layout.addWidget(label)
-        
-        # Time
-        time_str = self._event_data.get('time', datetime.now().strftime('%H:%M:%S'))
-        time_label = QLabel(time_str)
-        time_label.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 11px;")
-        info_layout.addWidget(time_label)
-        
-        layout.addLayout(info_layout)
-        layout.addStretch()
-        
-        # Confidence
-        confidence = self._event_data.get('confidence', 0)
-        conf_label = QLabel(f"{confidence:.0%}")
-        conf_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
-        layout.addWidget(conf_label)
-
-
-class StatusPanel(QWidget):
-    """Alt status paneli."""
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        
-        self._setup_ui()
-        
-        # Update timer
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._update_status)
-        self._timer.start(5000)  # Her 5 saniye
-    
-    def _setup_ui(self):
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 5, 10, 5)
-        
-        # CPU
-        self.cpu_label = QLabel(f"{tr('status_cpu')}: --")
-        self.cpu_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
-        layout.addWidget(self.cpu_label)
-        
-        layout.addWidget(self._separator())
-        
-        # RAM
-        self.ram_label = QLabel(f"{tr('status_ram')}: --")
-        self.ram_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
-        layout.addWidget(self.ram_label)
-        
-        layout.addWidget(self._separator())
-        
-        # Storage
-        self.storage_label = QLabel(f"{tr('status_disk')}: --")
-        self.storage_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
-        layout.addWidget(self.storage_label)
-        
-        layout.addStretch()
-        
-        # Internet Status
-        self.internet_indicator = StatusIndicator()
-        layout.addWidget(self.internet_indicator)
-        
-        self.internet_label = QLabel(tr('status_net'))
-        self.internet_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
-        layout.addWidget(self.internet_label)
-        
-        layout.addWidget(self._separator())
-        
-        # Telegram Status
-        self.telegram_indicator = StatusIndicator()
-        layout.addWidget(self.telegram_indicator)
-        
-        self.telegram_label = QLabel(tr('status_telegram'))
-        self.telegram_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
-        layout.addWidget(self.telegram_label)
-        
-        layout.addWidget(self._separator())
-        
-        # GSM Status
-        self.gsm_indicator = StatusIndicator()
-        layout.addWidget(self.gsm_indicator)
-        
-        self.gsm_label = QLabel(tr('status_gsm'))
-        self.gsm_label.setStyleSheet(f"color: {COLORS['text_secondary']};")
-        layout.addWidget(self.gsm_label)
-    
-    def _separator(self) -> QFrame:
-        """Vertical separator yaradır."""
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.VLine)
-        sep.setStyleSheet(f"color: {COLORS['border']};")
-        return sep
-    
-    def _update_status(self):
-        """Status yeniləyir."""
-        try:
-            import psutil
-            
-            # CPU
-            cpu_percent = psutil.cpu_percent()
-            self.cpu_label.setText(f"{tr('status_cpu')}: {cpu_percent:.0f}%")
-            
-            # RAM
-            memory = psutil.virtual_memory()
-            self.ram_label.setText(f"{tr('status_ram')}: {memory.percent:.0f}%")
-            
-        except ImportError:
-            pass
-        
-        # Storage
-        cleaner = get_cleaner()
-        status = cleaner.get_status()
-        self.storage_label.setText(f"{tr('status_disk')}: {status['current_size_mb']:.0f}MB / {status['max_size_mb']:.0f}MB")
-        
-        # Internet
-        internet_ok = check_internet_connection()
-        self.internet_indicator.set_status('online' if internet_ok else 'offline')
-    
-    def set_gsm_status(self, connected: bool):
-        """GSM statusunu ayarlar."""
-        self.gsm_indicator.set_status('online' if connected else 'offline')
-
-
 class MainWindow(QMainWindow):
-    """FacePro Əsas Pəncərəsi."""
+    """Əsas tətbiq pəncərəsi - Dashboard Design (Refactored)."""
     
     def __init__(self):
         super().__init__()
@@ -222,526 +68,350 @@ class MainWindow(QMainWindow):
         
         # State
         self._is_running = False
+        self._known_faces_count = 0 
+        self._total_detections_count = 0
         
-        self._setup_ui()
-        self._setup_menu()
-        self._setup_connections()
-        
-        logger.info("MainWindow initialized")
-    
-    def _setup_ui(self):
-        """UI setup."""
         self.setWindowTitle("FacePro - Smart Security System")
-        self.setMinimumSize(1200, 700)
+        self.resize(1366, 768)
         self.setStyleSheet(DARK_THEME)
         
-        # Central Widget
+        self._setup_ui()
+        self._setup_tray()
+        
+        # Connect language change signal
+        get_translator().language_changed.connect(self._on_language_changed)
+        
+        # Initial Data Load for stats
+        self._update_stats()
+        
+        logger.info("MainWindow initialized (Dashboard Design)")
+
+    def _setup_ui(self):
+        """UI setup - Dashboard Layout."""
         central = QWidget()
         self.setCentralWidget(central)
         
-        main_layout = QVBoxLayout(central)
+        main_layout = QHBoxLayout(central)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
         
-        # Toolbar
-        toolbar = self._create_toolbar()
-        main_layout.addWidget(toolbar)
+        # Sidebar
+        self.sidebar = SidebarWidget()
+        self.sidebar.manage_faces_clicked.connect(self._manage_faces)
+        self.sidebar.settings_clicked.connect(self._show_settings)
+        self.sidebar.exit_clicked.connect(self._quit_application)
+        main_layout.addWidget(self.sidebar)
         
-        # Splitter (Video Grid | Events Panel)
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.setHandleWidth(2)
+        # Main Content Area
+        content_area = QWidget()
+        content_layout = QVBoxLayout(content_area)
+        content_layout.setContentsMargins(30, 30, 30, 30)
         
-        # Video Grid
-        self.video_grid = VideoGrid()
-        splitter.addWidget(self.video_grid)
+        # Top Navigation (Tabs centered)
+        top_nav_layout = QHBoxLayout()
+        top_nav_layout.addStretch()
         
-        # Events Panel
-        events_panel = self._create_events_panel()
-        splitter.addWidget(events_panel)
+        self.nav_tabs = QTabWidget()
+        self.nav_tabs.addTab(QWidget(), tr('tab_home'))
+        self.nav_tabs.addTab(QWidget(), tr('tab_camera'))
+        self.nav_tabs.addTab(QWidget(), tr('tab_logs'))
+        self.nav_tabs.setFixedHeight(50)
+        self.nav_tabs.currentChanged.connect(self._on_tab_changed)
         
-        # Splitter ratio (70% video, 30% events)
-        splitter.setSizes([700, 300])
+        top_nav_layout.addWidget(self.nav_tabs)
+        top_nav_layout.addStretch()
+        content_layout.addLayout(top_nav_layout)
         
-        main_layout.addWidget(splitter, 1)
+        # Stacked Pages
+        self.pages = QStackedWidget()
         
-        # Status Panel
-        self.status_panel = StatusPanel()
-        main_layout.addWidget(self.status_panel)
-    
-    def _create_toolbar(self) -> QWidget:
-        """Toolbar yaradır."""
-        toolbar = QWidget()
-        toolbar.setFixedHeight(50)
-        toolbar.setStyleSheet(f"background-color: {COLORS['bg_medium']};")
+        # Page 0: Dashboard Home
+        self.home_page = HomePage()
+        self.home_page.start_camera_clicked.connect(self._toggle_running_from_card)
+        self.home_page.add_face_clicked.connect(self._add_known_face)
+        self.home_page.view_logs_clicked.connect(lambda: self.nav_tabs.setCurrentIndex(2))
+        self.pages.addWidget(self.home_page)
         
-        layout = QHBoxLayout(toolbar)
-        layout.setContentsMargins(10, 5, 10, 5)
+        # Page 1: Camera View
+        self.camera_page = CameraPage()
+        self.camera_page.toggle_system_clicked.connect(self._toggle_running)
+        self.pages.addWidget(self.camera_page)
         
-        # Logo / Title
-        title = QLabel("FacePro")
-        title.setStyleSheet(f"""
-            color: {COLORS['text_primary']};
-            font-size: 18px;
-            font-weight: bold;
-        """)
-        layout.addWidget(title)
+        # Page 2: Logs View
+        self.logs_page = LogsPage()
+        self.logs_page.export_clicked.connect(self._export_events)
+        self.pages.addWidget(self.logs_page)
         
-        layout.addStretch()
-        
-        # Control Buttons
-        self.start_btn = QPushButton("Start")
-        self.start_btn.setFixedWidth(100)
-        self.start_btn.clicked.connect(self._toggle_running)
-        layout.addWidget(self.start_btn)
-        
-        # Settings Button
-        settings_btn = QPushButton(tr('settings_title'))
-        settings_btn.setProperty("class", "secondary")
-        settings_btn.setFixedWidth(100)
-        settings_btn.clicked.connect(self._show_settings)
-        layout.addWidget(settings_btn)
-        
-        return toolbar
-    
-    def _create_events_panel(self) -> QWidget:
-        """Hadisələr panelini yaradır."""
-        panel = QWidget()
-        panel.setStyleSheet(f"background-color: {COLORS['bg_medium']};")
-        
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(10, 10, 10, 10)
-        
-        # Header
-        header = QLabel(tr('last_events'))
-        header.setStyleSheet(f"""
-            color: {COLORS['text_primary']};
-            font-size: 14px;
-            font-weight: bold;
-            padding-bottom: 10px;
-        """)
-        layout.addWidget(header)
-        
-        # Events List
-        self.events_list = QListWidget()
-        self.events_list.setStyleSheet(f"""
-            QListWidget {{
-                background-color: {COLORS['bg_dark']};
-                border: 1px solid {COLORS['border']};
-                border-radius: 6px;
-            }}
-            QListWidget::item {{
-                border-bottom: 1px solid {COLORS['border']};
-            }}
-        """)
-        layout.addWidget(self.events_list)
-        
-        # Buttons
-        btn_layout = QHBoxLayout()
-        
-        clear_btn = QPushButton(tr('events_clear'))
-        clear_btn.setProperty("class", "secondary")
-        clear_btn.clicked.connect(self._clear_events)
-        btn_layout.addWidget(clear_btn)
-        
-        export_btn = QPushButton(tr('events_export'))
-        export_btn.setProperty("class", "secondary")
-        export_btn.clicked.connect(self._export_events)
-        btn_layout.addWidget(export_btn)
-        
-        layout.addLayout(btn_layout)
-        
-        return panel
-    
-    def _setup_menu(self):
-        """Menu bar yaradır."""
-        menubar = self.menuBar()
-        
-        # File Menu
-        file_menu = menubar.addMenu(tr('menu_file'))
-        
-        settings_action = QAction(tr('settings_title'), self)
-        settings_action.triggered.connect(self._show_settings)
-        file_menu.addAction(settings_action)
-        
-        file_menu.addSeparator()
-        
-        exit_action = QAction(tr('action_exit'), self)
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
-        
-        # View Menu
-        view_menu = menubar.addMenu(tr('menu_view'))
-        
-        grid_1_action = QAction("1 Camera", self)
-        grid_1_action.triggered.connect(lambda: self.video_grid.set_columns(1))
-        view_menu.addAction(grid_1_action)
-        
-        grid_2_action = QAction("2x2 Grid", self)
-        grid_2_action.triggered.connect(lambda: self.video_grid.set_columns(2))
-        view_menu.addAction(grid_2_action)
-        
-        grid_3_action = QAction("3x3 Grid", self)
-        grid_3_action.triggered.connect(lambda: self.video_grid.set_columns(3))
-        view_menu.addAction(grid_3_action)
-        
-        # Faces Menu
-        faces_menu = menubar.addMenu("Faces")
-        
-        add_face_action = QAction(tr('action_faces_add'), self)
-        add_face_action.triggered.connect(self._add_known_face)
-        faces_menu.addAction(add_face_action)
-        
-        manage_faces_action = QAction(tr('action_faces_manage'), self)
-        manage_faces_action.triggered.connect(self._manage_faces)
-        faces_menu.addAction(manage_faces_action)
-        
-        # Help Menu
-        help_menu = menubar.addMenu(tr('menu_help'))
-        
-        about_action = QAction(tr('action_license_info'), self)
-        about_action.triggered.connect(self._show_about)
-        help_menu.addAction(about_action)
-    
-    def _setup_connections(self):
-        """Signal/slot bağlantıları."""
-        pass
-    
+        content_layout.addWidget(self.pages)
+        main_layout.addWidget(content_area)
+
+    def _on_tab_changed(self, index):
+        """Tab dəyişdikdə səhifəni dəyiş."""
+        self.pages.setCurrentIndex(index)
+
+    def _toggle_running_from_card(self):
+        """Dashboard kartından sistemi başlat/dayandır."""
+        self._toggle_running()
+        if self._is_running:
+            self.nav_tabs.setCurrentIndex(1)
+
     def _toggle_running(self):
         """Sistemi başlat/dayandır."""
         if self._is_running:
             self._stop_system()
         else:
             self._start_system()
-    
+
     def _start_system(self):
         """Sistemi başladır."""
-        logger.info("Starting system...")
+        if not self._cameras_config:
+            QMessageBox.warning(self, tr('msg_error'), "No cameras configured!")
+            return
         
-        # AI Worker başlat
+        # Setup cameras
+        for cam_cfg in self._cameras_config:
+            config = CameraConfig(
+                name=cam_cfg['name'],
+                source=cam_cfg['source'],
+                roi_points=cam_cfg.get('roi_points', [])
+            )
+            worker = self._camera_manager.add_camera(config)
+            self.camera_page.video_grid.add_camera_view(config.name)
+            
+            # Connect signals from each worker
+            worker.frame_ready.connect(self._on_camera_frame)
+            worker.connection_status.connect(self._on_camera_status)
+        
+        # Start AI Worker
         self._ai_worker = AIWorker()
         self._ai_worker.frame_processed.connect(self._on_frame_processed)
         self._ai_worker.detection_alert.connect(self._on_detection_alert)
         self._ai_worker.start()
         
-        # Kameraları başlat
-        self._cameras_config = load_cameras()
-        
-        for cam_data in self._cameras_config:
-            config = CameraConfig(
-                source=cam_data['source'],
-                name=cam_data['name'],
-                target_fps=self._config.get('camera', {}).get('target_fps', 30),
-                roi_points=cam_data.get('roi_points')
-            )
-            
-            # ROI varsa AI-ya bildir
-            if config.roi_points:
-                self._ai_worker.set_camera_roi(config.name, config.roi_points)
-            
-            # Video widget əlavə et
-            video_widget = self.video_grid.add_camera_view(config.name)
-            if config.roi_points:
-                video_widget.set_roi_points(config.roi_points)
-            
-            # Camera worker əlavə et və başlat
-            worker = self._camera_manager.add_camera(config)
-            worker.frame_ready.connect(self._on_camera_frame)
-            worker.connection_status.connect(self._on_camera_status)
-            worker.start()
-        
-        # Storage cleaner başlat
-        cleaner = get_cleaner()
-        cleaner.start_background_cleanup()
+        # Start cameras
+        self._camera_manager.start_all()
         
         self._is_running = True
-        self.start_btn.setText("Stop")
-        self.start_btn.setStyleSheet(f"background-color: {COLORS['danger']};")
+        self.camera_page.set_running_state(True)
         
-        # Telegram bildirişi
-        if self._telegram_notifier.is_enabled:
+        if self._telegram_notifier:
             self._telegram_notifier.send_startup_message()
-            self.status_panel.telegram_indicator.set_status('online')
         
         logger.info("System started")
-    
+
     def _stop_system(self):
         """Sistemi dayandırır."""
-        logger.info("Stopping system...")
-        
-        # AI worker dayandır
-        if self._ai_worker:
-            self._ai_worker.stop()
-            self._ai_worker = None
-        
-        # Kameraları dayandır
         self._camera_manager.stop_all()
         
-        # Storage cleaner dayandır
-        cleaner = get_cleaner()
-        cleaner.stop_background_cleanup()
+        if self._ai_worker:
+            self._ai_worker.stop()
+            self._ai_worker.wait(3000)
+            self._ai_worker = None
+        
+        self.camera_page.video_grid.clear_all()
         
         self._is_running = False
-        self.start_btn.setText("Start")
-        self.start_btn.setStyleSheet("")
-        
-        # Telegram bildirişi
-        if self._telegram_notifier.is_enabled:
-            self._telegram_notifier.send_shutdown_message()
-            self.status_panel.telegram_indicator.set_status('offline')
+        self.camera_page.set_running_state(False)
         
         logger.info("System stopped")
-    
-    @pyqtSlot(np.ndarray, str)
-    def _on_camera_frame(self, frame: np.ndarray, camera_name: str):
-        """Kamera frame-i alındıqda."""
-        # AI-a göndər
+        
+        if self._telegram_notifier:
+            self._telegram_notifier.send_shutdown_message()
+
+    @pyqtSlot(object, str)
+    def _on_camera_frame(self, frame, camera_name: str):
         if self._ai_worker:
             self._ai_worker.process_frame(frame, camera_name)
     
     @pyqtSlot(bool, str)
     def _on_camera_status(self, connected: bool, camera_name: str):
-        """Kamera bağlantı statusu dəyişdikdə."""
-        widget = self.video_grid.get_widget(camera_name)
+        widget = self.camera_page.video_grid.get_widget(camera_name)
         if widget:
             widget.set_connected(connected)
-    
-    @pyqtSlot(object)
-    def _on_frame_processed(self, result: FrameResult):
-        """AI frame emalı tamamlandıqda."""
-        # Detection-ları çək
-        annotated_frame = draw_detections(result.frame, result.detections)
-        
-        # Video widget-i yenilə
-        self.video_grid.update_frame(result.camera_name, annotated_frame)
-    
-    @pyqtSlot(object, np.ndarray)
-    def _on_detection_alert(self, detection: Detection, frame: np.ndarray):
-        """Yeni detection alert-i."""
-        # Event əlavə et
-        event_data = {
-            'label': detection.label or detection.type.value,
-            'confidence': detection.confidence,
-            'time': get_timestamp(),
-            'snapshot': frame
-        }
-        
-        self._add_event(event_data)
-        
-        # Snapshot saxla
-        snapshot_path = save_snapshot(frame, prefix=detection.label or 'unknown')
-        
-        # Log to Database
-        self._log_event_to_db(
-            event_type="PERSON" if detection.type == DetectionType.PERSON else "OTHER",
-            object_label=detection.label or "Unknown",
-            confidence=detection.confidence,
-            snapshot_path=snapshot_path
-        )
-        
-        # Telegram bildirişi
-        self._telegram_notifier.send_detection_alert(
-            frame=frame,
-            label=detection.label or 'Unknown',
-            confidence=detection.confidence,
-            is_known=detection.is_known,
-            camera_name="Camera"  # TODO: Get actual camera name
-        )
-        
-        # GSM Fallback
-        is_online = check_internet_connection()
-        
-        if not is_online:
-            logger.warning("Internet is DOWN. Attempting GSM fallback...")
-            
-            try:
-                from src.hardware.gsm_modem import get_modem
-                modem = get_modem()
-                
-                if not modem.is_connected:
-                    modem.connect()
-                
-                if modem.is_connected:
-                    alert_type = "INTRUSION" if not detection.is_known else "VISITOR"
-                    message = f"FacePro Alert: {alert_type} detected! Object: {detection.label or 'Unknown'}"
-                    modem.send_sms(message)
-                else:
-                    logger.error("GSM Modem not connected, cannot send fallback SMS")
-            except Exception as e:
-                logger.error(f"GSM fallback failed: {e}")
-    
-    def _add_event(self, event_data: Dict):
-        """Events siyahısına yeni element əlavə edir."""
-        item = QListWidgetItem()
-        widget = EventListItem(event_data)
-        item.setSizeHint(widget.sizeHint())
-        
-        self.events_list.insertItem(0, item)
-        self.events_list.setItemWidget(item, widget)
-        
-        # Maksimum 100 event saxla
-        while self.events_list.count() > 100:
-            self.events_list.takeItem(self.events_list.count() - 1)
-    
-    def _clear_events(self):
-        """Events siyahısını təmizləyir."""
-        self.events_list.clear()
-    
-    def _log_event_to_db(self, event_type: str, object_label: str, confidence: float, snapshot_path: Optional[str]):
-        """Hadisəni database-ə yazır."""
-        try:
-            db_path = get_db_path()
-            
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                INSERT INTO events (event_type, object_label, confidence, snapshot_path, created_at)
-                VALUES (?, ?, ?, ?, datetime('now', 'localtime'))
-            """, (event_type, object_label, confidence, snapshot_path))
-            
-            conn.commit()
-            conn.close()
-            
-        except Exception as e:
-            logger.error(f"Failed to log event to DB: {e}")
 
-    def _export_events(self):
-        """Events-i fayla export edir (CSV/JSON)."""
-        # Fayl seçimi
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export Events", "",
-            "CSV Files (*.csv);;JSON Files (*.json)"
-        )
+    @pyqtSlot(object)
+    def _on_frame_processed(self, result):
+        widget = self.camera_page.video_grid.get_widget(result.camera_name)
+        if widget and result.frame is not None:
+            display_frame = draw_detections(result.frame, result.detections)
+            widget.update_frame(display_frame)
+
+    @pyqtSlot(object, object)
+    def _on_detection_alert(self, detection, frame=None):
+        """Detection alert işlə."""
+        now = datetime.now()
         
-        if not path:
-            return
-            
+        # Duplicate prevention: same person within 2 seconds
+        cache_key = f"{detection.label}_{detection.camera_name if hasattr(detection, 'camera_name') else ''}"
+        last_time = getattr(self, '_last_detection_times', {}).get(cache_key)
+        
+        if not hasattr(self, '_last_detection_times'):
+            self._last_detection_times = {}
+        
+        if last_time and (now - last_time).total_seconds() < 2:
+            return  # Skip duplicate
+        
+        self._last_detection_times[cache_key] = now
+        self._total_detections_count += 1
+        
+        is_known = detection.label not in ["Naməlum", "Unknown", "Naməlum Şəxs"]
+        time_str = now.strftime("%d.%m %H:%M:%S")  # Date + Time
+        camera_name = getattr(detection, 'camera_name', '')
+        
+        # Add to activity feed
+        item = QListWidgetItem()
+        widget = ActivityItem(detection.label, time_str, is_known, camera_name)
+        item.setSizeHint(widget.sizeHint())
+        self.home_page.activity_feed.insertItem(0, item)
+        self.home_page.activity_feed.setItemWidget(item, widget)
+        
+        # Limit items
+        if self.home_page.activity_feed.count() > 20:
+            self.home_page.activity_feed.takeItem(self.home_page.activity_feed.count() - 1)
+        
+        # Also add to logs
+        log_item = QListWidgetItem()
+        log_widget = ActivityItem(detection.label, time_str, is_known, camera_name)
+        log_item.setSizeHint(log_widget.sizeHint())
+        self.logs_page.logs_list.insertItem(0, log_item)
+        self.logs_page.logs_list.setItemWidget(log_item, log_widget)
+        
+        # Update log count
+        self.logs_page.update_count(self.logs_page.logs_list.count())
+        
+        self._update_stats()
+
+    def _update_stats(self):
+        """Stats widget-i yenilə."""
         try:
-            # DB-dən oxu
             db_path = get_db_path()
-            
-            conn = sqlite3.connect(db_path)
-            conn.row_factory = sqlite3.Row  # Dict kimi oxumaq üçün
-            cursor = conn.cursor()
-            
-            cursor.execute("SELECT * FROM events ORDER BY created_at DESC")
-            rows = cursor.fetchall()
-            
-            events = [dict(row) for row in rows]
-            conn.close()
-            
-            if not events:
-                QMessageBox.information(self, "Export", "No events to export.")
-                return
-            
-            # Export logic
-            if path.endswith('.csv'):
-                with open(path, 'w', newline='', encoding='utf-8-sig') as f:
-                    writer = csv.DictWriter(f, fieldnames=events[0].keys())
-                    writer.writeheader()
-                    writer.writerows(events)
-            elif path.endswith('.json'):
-                with open(path, 'w', encoding='utf-8') as f:
-                    json.dump(events, f, indent=4, ensure_ascii=False)
-            
-            QMessageBox.information(self, "Success", f"Successfully exported {len(events)} events.")
-            logger.info(f"Events exported to {path}")
-            
-        except Exception as e:
-            logger.error(f"Export failed: {e}")
-            QMessageBox.critical(self, "Error", f"Export failed: {e}")
-    
-    def _show_settings(self):
-        """Ayarlar dialoqunu göstərir."""
-        dialog = SettingsDialog(self)
-        dialog.settings_saved.connect(self._on_settings_saved)
-        dialog.exec()
-    
-    def _on_settings_saved(self):
-        """Ayarlar saxlanıldıqda."""
-        self._config = load_config()
+            if os.path.exists(db_path):
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                cursor.execute("SELECT Count(*) FROM users")
+                self._known_faces_count = cursor.fetchone()[0]
+                conn.close()
+        except:
+            pass
         
-        # Telegram credentials yenilə
-        telegram_config = self._config.get('telegram', {})
-        self._telegram_notifier.update_credentials(
-            bot_token=telegram_config.get('bot_token', ''),
-            chat_id=telegram_config.get('chat_id', '')
-        )
-        
-        # Status indicator yenilə
-        if self._telegram_notifier.is_enabled:
-            self.status_panel.telegram_indicator.set_status('online')
-        else:
-            self.status_panel.telegram_indicator.set_status('offline')
-        
-        logger.info("Settings reloaded")
-        
-        QMessageBox.information(
-            self, 
-            tr('msg_restart_required'),
-            tr('msg_restart_detail')
-        )
-    
-    def _add_known_face(self):
-        """Yeni tanınmış üz əlavə edir."""
-        dialog = FaceEnrollmentDialog(self)
-        dialog.face_enrolled.connect(self._on_face_enrolled)
-        dialog.exec()
-    
+        self.sidebar.update_stats(self._known_faces_count, self._total_detections_count)
+
     def _manage_faces(self):
-        """Üzləri idarə etmək dialoqunu göstərir."""
         dialog = ManageFacesDialog(self)
         dialog.exec()
-    
-    def _on_face_enrolled(self, name: str, image_path: str):
-        """Yeni üz əlavə edildikdə."""
-        logger.info(f"Face enrolled: {name} -> {image_path}")
-        # AI worker-ə yeni üzü əlavə et
-        if self._ai_worker:
-            try:
-                import cv2
-                face_image = cv2.imread(image_path)
-                if face_image is not None:
-                    self._ai_worker.add_known_face(name, face_image)
-            except Exception as e:
-                logger.error(f"Failed to add face to AI worker: {e}")
-    
-    def _show_about(self):
-        """About dialoqunu göstərir."""
-        QMessageBox.about(
-            self, 
-            tr('action_license_info'),
-            f"""<h2>FacePro v1.0</h2>
-            <p>Smart Security System with Face Recognition & Re-ID</p>
-            <p>© 2025 NurMurDev</p>
-            """
+        self._update_stats()
+
+    def _add_known_face(self):
+        dialog = FaceEnrollmentDialog(parent=self)
+        if dialog.exec():
+            self._update_stats()
+            if self._ai_worker:
+                self._ai_worker.reload_known_faces()
+
+    def _show_settings(self):
+        dialog = SettingsDialog(self)
+        dialog.exec()
+        self._config = load_config()
+        self._cameras_config = load_cameras()
+
+    def _export_events(self):
+        """Hadisələri CSV formatında ixrac edir."""
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Events", f"events_{get_timestamp()}.csv",
+            "CSV Files (*.csv);;JSON Files (*.json)"
         )
-    
-    def closeEvent(self, event):
-        """Pəncərə bağlanarkən."""
+        if not path:
+            return
+        
+        try:
+            db_path = get_db_path()
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM events ORDER BY timestamp DESC LIMIT 1000")
+            rows = cursor.fetchall()
+            columns = [desc[0] for desc in cursor.description]
+            conn.close()
+            
+            if path.endswith('.json'):
+                data = [dict(zip(columns, row)) for row in rows]
+                with open(path, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+            else:
+                with open(path, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(columns)
+                    writer.writerows(rows)
+            
+            QMessageBox.information(self, tr('msg_success'), f"Exported to {path}")
+            logger.info(f"Events exported to {path}")
+        except Exception as e:
+            QMessageBox.critical(self, tr('msg_error'), str(e))
+
+    def _setup_tray(self):
+        """System tray setup."""
+        self.tray_icon = QSystemTrayIcon(self)
+        icon = self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
+        self.tray_icon.setIcon(icon)
+        
+        menu = QMenu()
+        show_action = QAction("Show", self)
+        show_action.triggered.connect(self.showNormal)
+        menu.addAction(show_action)
+        menu.addSeparator()
+        exit_action = QAction("Exit", self)
+        exit_action.triggered.connect(self._quit_application)
+        menu.addAction(exit_action)
+        
+        self.tray_icon.setContextMenu(menu)
+        self.tray_icon.show()
+        self.tray_icon.activated.connect(
+            lambda reason: self.showNormal() if reason == QSystemTrayIcon.ActivationReason.DoubleClick else None
+        )
+
+    def _quit_application(self):
         if self._is_running:
             reply = QMessageBox.question(
-                self, tr('action_exit'),
-                "System is running. Are you sure you want to exit?",
+                self, "Exit", "System is running. Exit?", 
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
-            
-            if reply == QMessageBox.StandardButton.No:
-                event.ignore()
+            if reply == QMessageBox.StandardButton.No: 
                 return
-            
             self._stop_system()
+        QApplication.quit()
+
+    def closeEvent(self, event):
+        if self.isVisible():
+            event.ignore()
+            self.hide()
+            self.tray_icon.showMessage(
+                "FacePro", "Running in background...", 
+                QSystemTrayIcon.MessageIcon.Information, 2000
+            )
+    
+    def _on_language_changed(self, lang_code: str):
+        """Dil dəyişdikdə bütün UI elementlərini yeniləyir."""
+        logger.info(f"Language changed to: {lang_code}")
         
-        event.accept()
+        # Update Tabs
+        self.nav_tabs.setTabText(0, tr('tab_home'))
+        self.nav_tabs.setTabText(1, tr('tab_camera'))
+        self.nav_tabs.setTabText(2, tr('tab_logs'))
+        
+        # Update components via their update_language methods
+        self.sidebar.update_language()
+        self.home_page.update_language()
+        self.camera_page.update_language()
+        self.logs_page.update_language()
+        
+        # Update Stats
+        self._update_stats()
+        
+        # Show confirmation
+        QMessageBox.information(self, tr('msg_success'), tr('msg_language_changed'))
 
 
 if __name__ == "__main__":
-    from PyQt6.QtWidgets import QApplication
-    import sys
-    
     app = QApplication(sys.argv)
-    
     window = MainWindow()
     window.show()
-    
     sys.exit(app.exec())

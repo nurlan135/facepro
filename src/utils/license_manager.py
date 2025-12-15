@@ -186,10 +186,22 @@ def save_license(license_key: str) -> bool:
     try:
         license_path = get_license_file_path()
         
+        # Windows-da gizli fayla yazmaq problemi ola bilər.
+        # Əvvəlcə gizliliyi ləğv et.
+        if os.path.exists(license_path) and platform.system() == "Windows":
+            try:
+                subprocess.run(
+                    f'attrib -h -r "{license_path}"',
+                    shell=True,
+                    capture_output=True
+                )
+            except:
+                pass
+        
         with open(license_path, 'w', encoding='utf-8') as f:
             f.write(license_key.strip())
         
-        # Windows-da faylı gizli et
+        # Windows-da faylı yenidən gizli et
         if platform.system() == "Windows":
             try:
                 subprocess.run(
@@ -202,7 +214,9 @@ def save_license(license_key: str) -> bool:
         
         return True
         
-    except Exception:
+    except Exception as e:
+        # Xətanı konsola yaz ki, debug edə bilək
+        print(f"FAILED TO SAVE LICENSE: {e}")
         return False
 
 

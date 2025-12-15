@@ -55,3 +55,5 @@ Camera Frame → Motion Check → Object Detection → Face Recognition → Re-I
 2. **GSM fallback** - Alerts work even without internet
 3. **Hardware lock** - Prevents piracy, protects commercial value
 4. **Local-first** - Privacy by design
+5. **Multi-language** - English, Azerbaijani, Russian with live switching
+6. **Modular UI** - Modern dashboard design with sidebar, tabs, filters

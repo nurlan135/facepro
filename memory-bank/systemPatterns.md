@@ -47,6 +47,27 @@ Main Thread (UI)
     - Use `get_db_path()` to ensure database portability.
     - Auto-initialize database schema if missing (Self-Healing).
 
+### UI Modular Architecture
+```
+src/ui/
+├── main_window.py          # Coordinator (~350 lines)
+│   └── Manages system state, signals, tray
+│
+└── dashboard/              # Component Modules
+    ├── __init__.py         # Exports all components
+    ├── widgets.py          # ActivityItem, ActionCard
+    ├── sidebar.py          # SidebarWidget (profile, nav, stats)
+    ├── home_page.py        # HomePage (welcome, cards, activity)
+    ├── camera_page.py      # CameraPage (video grid, controls)
+    └── logs_page.py        # LogsPage (filters, export)
+```
+
+**Benefits:**
+- Single Responsibility Principle
+- Easier testing and maintenance
+- Parallel development possible
+- `main_window.py` reduced from 730→350 lines
+
 ## Refactoring targets
 - Consolidate all database operations into `DatabaseManager` class (currently scattered/helper-based).
 - Move UI-specific business logic (like enrollment) fully into Controllers or Services.

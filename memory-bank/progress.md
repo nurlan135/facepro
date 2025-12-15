@@ -89,11 +89,29 @@
 
 ### Low Priority
 - [x] Multi-language support (AZ, EN, RU) ✅
+- [x] **Live language switching (no restart required)** ✅
 - [ ] Light theme option
-- [ ] System tray minimization
+- [x] **System tray minimization** ✅
 - [ ] Auto-start with Windows
-- [ ] Installer package (PyInstaller/NSIS)
+- [x] **Installer package (PyInstaller/NSIS)** ✅
 - [ ] Update mechanism
+
+### Completed Today (2025-12-15)
+- [x] **Dashboard UI Redesign** - Modern FaceGuard Pro theme
+- [x] **UI Modularization** - `main_window.py` refactored from 730 to 350 lines
+- [x] **Dashboard Components**:
+  - `src/ui/dashboard/widgets.py` - ActivityItem, ActionCard
+  - `src/ui/dashboard/sidebar.py` - SidebarWidget
+  - `src/ui/dashboard/home_page.py` - HomePage
+  - `src/ui/dashboard/camera_page.py` - CameraPage
+  - `src/ui/dashboard/logs_page.py` - LogsPage with filters
+- [x] **Logs Page Improvements**:
+  - Title header
+  - Filter buttons (All/Known/Unknown)
+  - Entry count display
+  - Duplicate prevention (2 second cooldown)
+  - Camera name display
+  - Date + Time format
 
 ## Current Status
 

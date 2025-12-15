@@ -41,6 +41,7 @@ class Detection:
     label: str = ""  # Face/Re-ID ilə tanınmış ad
     is_known: bool = False
     face_visible: bool = False
+    camera_name: str = ""  # Hansı kameradan aşkarlanıb
 
 
 @dataclass
@@ -231,6 +232,7 @@ class FaceRecognizer:
         self._face_recognition = None
         self._tolerance = tolerance
         self._known_encodings: Dict[str, List[np.ndarray]] = {}  # {name: [encodings]}
+        self._name_to_id: Dict[str, int] = {}  # {name: user_id}
         logger.info("FaceRecognizer created (lazy loading)")
     
     def _ensure_loaded(self):
@@ -274,6 +276,10 @@ class FaceRecognizer:
                 self._known_encodings[name] = []
             
             self._known_encodings[name].append(encodings[0])
+            # NOTE: New faces added at runtime won't have ID until reload or separate ID handling.
+            # But for Re-ID logic we really need the ID. 
+            # For now, we only support Passive Enrollment for faces loaded from DB (which have IDs).
+            
             logger.info(f"Face added for: {name}")
             return True
             
@@ -281,7 +287,7 @@ class FaceRecognizer:
             logger.error(f"Failed to add face: {e}")
             return False
     
-    def recognize(self, frame: np.ndarray, person_bbox: Tuple[int, int, int, int]) -> Tuple[Optional[str], float, bool]:
+    def recognize(self, frame: np.ndarray, person_bbox: Tuple[int, int, int, int]) -> Tuple[Optional[str], Optional[int], float, bool]:
         """
         Frame-də üz tanıyır.
         
@@ -290,7 +296,7 @@ class FaceRecognizer:
             person_bbox: Şəxsin bounding box-u
             
         Returns:
-            (ad, confidence, üz_görünürmü)
+            (ad, user_id, confidence, üz_görünürmü)
         """
         try:
             self._ensure_loaded()
@@ -300,7 +306,7 @@ class FaceRecognizer:
             person_crop = frame[y1:y2, x1:x2]
             
             if person_crop.size == 0:
-                return None, 0.0, False
+                return None, None, 0.0, False
             
             # RGB-ə çevir
             rgb_crop = cv2.cvtColor(person_crop, cv2.COLOR_BGR2RGB)
@@ -309,16 +315,16 @@ class FaceRecognizer:
             face_locations = self._face_recognition.face_locations(rgb_crop)
             
             if not face_locations:
-                return None, 0.0, False  # Üz görünmür
+                return None, None, 0.0, False  # Üz görünmür
             
             # Üz encoding-i çıxar
             face_encodings = self._face_recognition.face_encodings(rgb_crop, face_locations)
             
             if not face_encodings:
-                return None, 0.0, True  # Üz var amma encoding çıxmadı
+                return None, None, 0.0, True  # Üz var amma encoding çıxmadı
             
             # Tanınmış üzlərlə müqayisə
-            best_match = None
+            best_match_name = None
             best_distance = float('inf')
             
             for name, known_encs in self._known_encodings.items():
@@ -327,28 +333,22 @@ class FaceRecognizer:
                     
                     if distance < best_distance:
                         best_distance = distance
-                        best_match = name
+                        best_match_name = name
             
-            if best_match and best_distance <= self._tolerance:
+            if best_match_name and best_distance <= self._tolerance:
                 confidence = 1.0 - best_distance
-                return best_match, confidence, True
+                user_id = self._name_to_id.get(best_match_name)
+                return best_match_name, user_id, confidence, True
             
-            return None, 0.0, True  # Üz var amma tanınmadı
+            return None, None, 0.0, True  # Üz var amma tanınmadı
             
         except Exception as e:
             logger.error(f"Face recognition failed: {e}")
-            return None, 0.0, False
+            return None, None, 0.0, False
     
     def load_from_database(self) -> int:
-        """
-        Database-dən bütün üzləri yükləyir.
-        
-        Returns:
-            Yüklənən üz sayı
-        """
+        """Database-dən bütün üzləri yükləyir."""
         import sqlite3
-        import pickle
-        
         import pickle
         
         db_path = get_db_path()
@@ -363,12 +363,12 @@ class FaceRecognizer:
             cursor = conn.cursor()
             
             cursor.execute("""
-                SELECT u.name, fe.encoding
+                SELECT u.name, u.id, fe.encoding
                 FROM users u
                 JOIN face_encodings fe ON u.id = fe.user_id
             """)
             
-            for name, encoding_blob in cursor.fetchall():
+            for name, user_id, encoding_blob in cursor.fetchall():
                 try:
                     encoding = pickle.loads(encoding_blob)
                     
@@ -376,6 +376,7 @@ class FaceRecognizer:
                         self._known_encodings[name] = []
                     
                     self._known_encodings[name].append(encoding)
+                    self._name_to_id[name] = user_id
                     loaded_count += 1
                     
                 except Exception as e:
@@ -479,6 +480,7 @@ class AIWorker(QThread):
                 # Alert-lər
                 for detection in result.detections:
                     if detection.type == DetectionType.PERSON:
+                        detection.camera_name = camera_name
                         self.detection_alert.emit(detection, frame)
                         
             except Exception as e:
@@ -538,7 +540,7 @@ class AIWorker(QThread):
                     continue
 
             if detection.type == DetectionType.PERSON:
-                name, confidence, face_visible = self._face_recognizer.recognize(frame, detection.bbox)
+                name, user_id, confidence, face_visible = self._face_recognizer.recognize(frame, detection.bbox)
                 
                 detection.face_visible = face_visible
                 
@@ -546,6 +548,22 @@ class AIWorker(QThread):
                     detection.label = name
                     detection.is_known = True
                     detection.confidence = confidence
+                    
+                    # PASSIVE ENROLLMENT:
+                    # Əgər üz tanınıbsa, bədən xüsusiyyətlərini öyrən və bazaya yaz.
+                    # Bu, gələcəkdə üz görünməyəndə (arxadan) tanımaq üçün lazımdır.
+                    if user_id:
+                        person_crop = crop_person(frame, detection.bbox)
+                        if person_crop is not None:
+                            embedding = self._reid_engine.extract_embedding(person_crop)
+                            if embedding is not None:
+                                # Burada bir optimizasiya edə bilərik:
+                                # Hər frame-də yazmaq əvəzinə, yalnız əgər bu bucaqdan/geyimdən yoxdursa yazaq.
+                                # MVP üçün sadəlik xatirinə yazırıq (lakin 30 fps-də çox ola bilər).
+                                # HƏLL: Yalnız 1% ehtimalla yazaq və ya in-memory yoxlayaq.
+                                # Sadə random sampling (hər 100 frame-dən bir)
+                                if np.random.random() < 0.05:  # 5% ehtimal
+                                    self._save_reid_embedding(user_id, name, embedding)
                 else:
                     detection.label = "Unknown"
                     
@@ -562,7 +580,7 @@ class AIWorker(QThread):
                                 detection.label = f"{match.user_name} (Re-ID)"
                                 detection.is_known = True
                                 detection.confidence = match.confidence
-                                logger.info(f"Re-ID matched: {match.user_name} ({match.confidence:.2%})")
+                                logger.debug(f"Re-ID matched: {match.user_name} ({match.confidence:.2%})")
             
             final_detections.append(detection)
         
@@ -635,23 +653,15 @@ class AIWorker(QThread):
         import sqlite3
         import pickle
         
-        import pickle
-        
         db_path = get_db_path()
         
         try:
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
             
-            # TODO: Schema-da reid_embeddings cədvəlini yoxlamaq lazımdır
-            # Hazırda MVP üçün biz face encodings istifadə edirik
-            # Lakin gələcəkdə reid_embeddings olacaq
-            # Müvəqqəti olaraq face_recognition encoding-ləri deyil, 
-            # ayrıca bədən embeddingləri lazımdır.
-            # Əgər reid_embeddings cədvəli boşdursa, hələlik heç nə yükləmirik.
-            
+            # Using 'vector' column as per schema
             cursor.execute("""
-                SELECT re.id, re.user_id, u.name, re.embedding
+                SELECT re.id, re.user_id, u.name, re.vector
                 FROM reid_embeddings re
                 JOIN users u ON re.user_id = u.id
             """)
@@ -666,6 +676,37 @@ class AIWorker(QThread):
             
         except Exception as e:
             logger.error(f"Failed to load Re-ID embeddings: {e}")
+
+    def _save_reid_embedding(self, user_id: int, user_name: str, embedding: np.ndarray, confidence: float = 1.0):
+        """Re-ID embedding-i database-ə və yaddaşa yazır."""
+        try:
+            import sqlite3
+            import pickle
+            
+            # 1. Update In-Memory
+            # Fake ID for memory (DB-dən oxuyanda real ID gələcək)
+            # Bizə əslində sadəcə müqayisə üçün lazımdır
+            self._reid_embeddings.append((0, user_id, user_name, embedding))
+            
+            # 2. Write to DB
+            db_path = get_db_path()
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
+            blob = pickle.dumps(embedding)
+            
+            cursor.execute("""
+                INSERT INTO reid_embeddings (user_id, vector, confidence)
+                VALUES (?, ?, ?)
+            """, (user_id, blob, confidence))
+            
+            conn.commit()
+            conn.close()
+            
+            logger.info(f"Passive Enrollment: Saved body embedding for {user_name}")
+            
+        except Exception as e:
+            logger.error(f"Failed to save Re-ID embedding: {e}")
 
 
 def draw_detections(frame: np.ndarray, detections: List[Detection]) -> np.ndarray:

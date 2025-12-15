@@ -1,7 +1,7 @@
 # FacePro - Active Context
 
 ## Current Work Focus
-**Session Date**: 2025-12-15 (Updated: 15:05)
+**Session Date**: 2025-12-15 (Updated: 20:30)
 
 ### Completed This Session
 1. ✅ Project structure created (all directories)
@@ -18,33 +18,25 @@
    - `styles.py` - Dark theme
    - `video_widget.py` - Video display
    - `settings_dialog.py` - Settings UI
-   - `main_window.py` - Main dashboard
-5. ✅ License system implemented:
-   - `license_manager.py` - Hardware-locked licensing
-   - `admin_keygen.py` - Key generator for admin
-   - `main.py` - Entry point with license check
-6. ✅ **Face Enrollment UI implemented**:
-   - `face_enrollment.py` - FaceEnrollmentDialog, ManageFacesDialog
-   - Browse image or capture from webcam
-   - Face detection validation
-   - Database storage with pickle serialization
-   - Manage Faces dialog for viewing/deleting
-7. ✅ All dependencies installed and working
-8. ✅ **License Activation GUI Dialog implemented**:
-   - `license_dialog.py` - Modern dark theme UI
-   - Machine ID display with copy button
-   - License key input with validation
-   - Integrated into main.py entry point
-9. ✅ **Telegram Notification Integration**:
-   - `telegram_notifier.py` - Async bildiriş modulu
-   - Rate limiting (spam qoruması)
-   - Şəkilli detection alert-ləri
-   - Settings-də Test Connection düyməsi
-   - Status panel-də Telegram indicator
-   - **GSM Fallback Logic**: Offline rejimdə SMS göndərmə (main_window.py) ✅
-   - **Event Export**: CSV/JSON ixrac (UTF-8 BOM support) ✅
-   - **Re-ID Integration**: AI worker-də Re-ID məntiqi ✅
-   - **Multi-language**: AZ, EN, RU dilləri dəstəyi ✅
+   - `main_window.py` - Main dashboard (refactored)
+5. ✅ License system implemented
+6. ✅ **Face Enrollment UI implemented**
+7. ✅ **License Activation GUI Dialog implemented**
+8. ✅ **Telegram Notification Integration**
+9. ✅ **Dashboard UI Redesign** (FaceGuard Pro theme)
+10. ✅ **UI Modularization** - main_window.py refactored:
+    - `src/ui/dashboard/widgets.py` - ActivityItem, ActionCard
+    - `src/ui/dashboard/sidebar.py` - SidebarWidget
+    - `src/ui/dashboard/home_page.py` - HomePage
+    - `src/ui/dashboard/camera_page.py` - CameraPage
+    - `src/ui/dashboard/logs_page.py` - LogsPage with filters
+11. ✅ **Live Language Switching** - UI updates without restart
+12. ✅ **Enhanced Logs Page**:
+    - Filter buttons (All/Known/Unknown)
+    - Entry count display
+    - Duplicate prevention (2 sec cooldown)
+    - Camera name in entries
+    - Date + Time format
 
 ### Current Machine License
 - **Machine ID**: E3B0-C442-98FC-1C14
@@ -52,11 +44,11 @@
 - **Status**: Activated ✅
 
 ## Recent Changes
-- **License Hardening:** Implemented strict hardware binding (UUID + Volume Serial + CPU ID) to prevent unauthorized copying.
-- **Installer Creation:** Created `build_exe.py` and `create_setup.py` to generate a standalone `FacePro_Setup_v1.0.exe` installer.
-- **Path Handling Fixes:** Implemented `get_db_path()` and `_ensure_db_initialized()` to handle database creation correctly in "frozen" (exe) mode and fix "no such table" errors.
-- **Offline Support:** Ensured `yolov8n.pt` and face recognition models are bundled within the installer.
-- **Window Flickering Fix:** Suppressed console window flickering for background processes (ping, wmic) in Windows.
+- **UI Modularization:** Split main_window.py (730→350 lines) into dashboard components.
+- **Live Language Switching:** Using QObject signals for real-time translation updates.
+- **Logs Filtering:** Added All/Known/Unknown filters with entry count.
+- **Duplicate Prevention:** Same person detection throttled to 2 seconds.
+- **Camera Name Display:** Each log entry shows which camera detected it.
 
 ## Active Decisions
 - **Database Path:** The database is now located at `data/db/facepro.db` relative to the executable (or `_internal` folder), ensuring portability.
