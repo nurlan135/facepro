@@ -23,23 +23,153 @@ from src.utils.helpers import load_config, save_config, load_cameras, save_camer
 from src.ui.styles import DARK_THEME, COLORS
 from src.hardware.gsm_modem import GSMModem
 from src.hardware.telegram_notifier import TelegramNotifier
-from src.hardware.telegram_notifier import TelegramNotifier
 from src.utils.i18n import tr, set_language
 from src.ui.zone_editor import ZoneEditorDialog
+from src.ui.camera_dialogs import RTSPConfigDialog, LocalCameraSelector
 
 logger = get_logger()
+
+
+class CameraTypeSelector(QDialog):
+    """Kamera növü seçim dialoqu."""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.selected_type = None
+        self._setup_ui()
+    
+    def _setup_ui(self):
+        self.setWindowTitle(tr('select_camera_type') if tr('select_camera_type') != 'select_camera_type' else "Kamera Seçin")
+        self.setFixedSize(500, 350)
+        self.setStyleSheet(DARK_THEME)
+        
+        layout = QVBoxLayout(self)
+        layout.setSpacing(20)
+        layout.setContentsMargins(30, 30, 30, 30)
+        
+        # Title
+        title = QLabel("🎥 " + (tr('select_camera_type') if tr('select_camera_type') != 'select_camera_type' else "Kamera Seçin"))
+        title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {COLORS['primary']};")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+        
+        subtitle = QLabel(tr('select_camera_type_desc') if tr('select_camera_type_desc') != 'select_camera_type_desc' else "Kamera növünü seçin")
+        subtitle.setStyleSheet(f"font-size: 12px; color: {COLORS['text_muted']};")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtitle)
+        
+        layout.addSpacing(10)
+        
+        # Buttons container
+        btn_container = QHBoxLayout()
+        btn_container.setSpacing(20)
+        
+        # RTSP/IP Camera button
+        rtsp_btn = QPushButton()
+        rtsp_btn.setFixedSize(200, 150)
+        rtsp_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS['bg_light']};
+                border: 2px solid {COLORS['border']};
+                border-radius: 10px;
+                padding: 15px;
+            }}
+            QPushButton:hover {{
+                border-color: {COLORS['primary']};
+                background-color: {COLORS['bg_medium']};
+            }}
+        """)
+        rtsp_layout = QVBoxLayout(rtsp_btn)
+        rtsp_icon = QLabel("🌐")
+        rtsp_icon.setStyleSheet("font-size: 40px;")
+        rtsp_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        rtsp_layout.addWidget(rtsp_icon)
+        rtsp_title = QLabel("RTSP / IP Kamera")
+        rtsp_title.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {COLORS['primary']};")
+        rtsp_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        rtsp_layout.addWidget(rtsp_title)
+        rtsp_desc = QLabel("Hikvision, Dahua, TP-Link")
+        rtsp_desc.setStyleSheet(f"font-size: 10px; color: {COLORS['text_muted']};")
+        rtsp_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        rtsp_layout.addWidget(rtsp_desc)
+        rtsp_btn.clicked.connect(lambda: self._select_type("rtsp"))
+        btn_container.addWidget(rtsp_btn)
+        
+        # Webcam button
+        webcam_btn = QPushButton()
+        webcam_btn.setFixedSize(200, 150)
+        webcam_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS['surface']};
+                border: 2px solid {COLORS['border']};
+                border-radius: 10px;
+                padding: 15px;
+            }}
+            QPushButton:hover {{
+                border-color: {COLORS['success']};
+                background-color: {COLORS['surface_light']};
+            }}
+        """)
+        webcam_layout = QVBoxLayout(webcam_btn)
+        webcam_icon = QLabel("💻")
+        webcam_icon.setStyleSheet("font-size: 40px;")
+        webcam_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        webcam_layout.addWidget(webcam_icon)
+        webcam_title = QLabel("Lokal Kamera")
+        webcam_title.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {COLORS['success']};")
+        webcam_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        webcam_layout.addWidget(webcam_title)
+        webcam_desc = QLabel("USB webcam, laptop kamerası")
+        webcam_desc.setStyleSheet(f"font-size: 10px; color: {COLORS['text_muted']};")
+        webcam_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        webcam_layout.addWidget(webcam_desc)
+        webcam_btn.clicked.connect(lambda: self._select_type("webcam"))
+        btn_container.addWidget(webcam_btn)
+        
+        layout.addLayout(btn_container)
+        
+        layout.addSpacing(10)
+        
+        # Cancel button
+        cancel_btn = QPushButton(tr('cancel') if tr('cancel') != 'cancel' else "Ləğv et")
+        cancel_btn.setFixedWidth(120)
+        cancel_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                border: 1px solid {COLORS['border']};
+                border-radius: 5px;
+                padding: 8px 16px;
+                color: {COLORS['text_muted']};
+            }}
+            QPushButton:hover {{
+                background-color: {COLORS['surface']};
+            }}
+        """)
+        cancel_btn.clicked.connect(self.reject)
+        
+        cancel_container = QHBoxLayout()
+        cancel_container.addStretch()
+        cancel_container.addWidget(cancel_btn)
+        cancel_container.addStretch()
+        layout.addLayout(cancel_container)
+    
+    def _select_type(self, camera_type: str):
+        self.selected_type = camera_type
+        self.accept()
 
 
 class CameraDialog(QDialog):
     """Kamera əlavə etmə/redaktə dialoqu."""
     
-    def __init__(self, camera_data: Optional[Dict] = None, parent=None):
+    def __init__(self, camera_data: Optional[Dict] = None, parent=None, preset_type: int = None):
         """
         Args:
             camera_data: Redaktə üçün mövcud kamera data-sı (None = yeni)
             parent: Parent widget
+            preset_type: Əvvəlcədən seçilmiş kamera növü (0=RTSP, 1=Webcam)
         """
         super().__init__(parent)
+        self._preset_type = preset_type
         
         self._camera_data = camera_data or {}
         self._is_edit_mode = camera_data is not None
@@ -208,6 +338,11 @@ class CameraDialog(QDialog):
     
     def _load_data(self):
         """Mövcud data-nı yükləyir."""
+        # Preset type varsa, onu seç
+        if self._preset_type is not None and not self._camera_data:
+            self.type_combo.setCurrentIndex(self._preset_type)
+            return
+        
         if not self._camera_data:
             return
         
@@ -650,11 +785,23 @@ class SettingsDialog(QDialog):
     
     def _add_camera(self):
         """Yeni kamera əlavə edir."""
-        dialog = CameraDialog(parent=self)
+        # Əvvəlcə kamera növü seçim dialoqunu göstər
+        type_selector = CameraTypeSelector(parent=self)
+        if type_selector.exec() != QDialog.DialogCode.Accepted:
+            return
+        
+        # Seçilmiş növə görə uyğun dialoqu aç
+        if type_selector.selected_type == "rtsp":
+            dialog = RTSPConfigDialog(parent=self)
+        else:
+            dialog = LocalCameraSelector(parent=self)
+        
         if dialog.exec() == QDialog.DialogCode.Accepted:
             camera_data = dialog.get_camera_data()
-            self._cameras.append(camera_data)
-            self._refresh_camera_list()
+            if camera_data:
+                self._cameras.append(camera_data)
+                self._refresh_camera_list()
+                logger.info(f"Camera added: {camera_data.get('name', 'Unknown')}")
     
     def _edit_camera(self):
         """Seçilmiş kameranı redaktə edir."""

@@ -22,11 +22,12 @@ class DetectionType(Enum):
 class Detection:
     """Aşkarlama nəticəsi."""
     type: DetectionType
-    bbox: Tuple[int, int, int, int]  # x1, y1, x2, y2
+    bbox: Tuple[int, int, int, int]  # x1, y1, x2, y2 (person/body box)
     confidence: float
     label: str = ""  # Face/Re-ID ilə tanınmış ad
     is_known: bool = False
     face_visible: bool = False
+    face_bbox: Tuple[int, int, int, int] = None  # x1, y1, x2, y2 (üz box-u, əgər varsa)
     camera_name: str = ""  # Hansı kameradan aşkarlanıb
     track_id: int = -1  # YOLO track ID for gait recognition
     identification_method: str = ""  # 'face', 'reid', 'gait' - which method identified the person

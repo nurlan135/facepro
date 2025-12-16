@@ -148,8 +148,9 @@ class AIWorker(QThread):
 
     def _process_person(self, frame: np.ndarray, detection: Detection):
         """Person detection-ı emal edir."""
-        name, user_id, confidence, face_visible = self._face_recognizer.recognize(frame, detection.bbox)
+        name, user_id, confidence, face_visible, face_bbox = self._face_recognizer.recognize(frame, detection.bbox)
         detection.face_visible = face_visible
+        detection.face_bbox = face_bbox
         
         if name:
             detection.label = name
@@ -180,7 +181,7 @@ class AIWorker(QThread):
             if not reid_matched and detection.track_id >= 0:
                 gait_match = self._try_gait_recognition(frame, detection.bbox, detection.track_id)
                 if gait_match:
-                    detection.label = f"{gait_match.user_name} ({tr('gait_identified')}: {gait_match.confidence:.0%})"
+                    detection.label = f"{gait_match.user_name} (Gait: {gait_match.confidence:.0%})"
                     detection.is_known = True
                     detection.confidence = gait_match.confidence
                     detection.identification_method = 'gait'
@@ -348,29 +349,40 @@ def draw_detections(frame: np.ndarray, detections: List[Detection]) -> np.ndarra
     output = frame.copy()
     
     for det in detections:
-        x1, y1, x2, y2 = det.bbox
-        
         if det.type == DetectionType.PERSON:
             if det.is_known:
                 if det.identification_method == 'gait':
-                    color = (255, 0, 0)  # Mavi
+                    color = (255, 0, 0)  # Mavi - bədən box
+                    draw_bbox = det.bbox
                 elif det.identification_method == 'reid':
-                    color = (0, 255, 255)  # Sarı
+                    color = (0, 255, 255)  # Sarı - bədən box
+                    draw_bbox = det.bbox
                 else:
+                    # Face ilə tanınıb - üz box çək
                     color = (0, 255, 0)  # Yaşıl
+                    draw_bbox = det.face_bbox if det.face_bbox else det.bbox
             else:
-                color = (0, 0, 255)  # Qırmızı
+                color = (0, 0, 255)  # Qırmızı - tanınmayıb
+                # Üz görünürsə üz box, yoxsa bədən box
+                draw_bbox = det.face_bbox if det.face_bbox else det.bbox
         elif det.type == DetectionType.CAT:
             color = (255, 165, 0)
+            draw_bbox = det.bbox
         elif det.type == DetectionType.DOG:
             color = (255, 255, 0)
+            draw_bbox = det.bbox
         else:
             color = (128, 128, 128)
+            draw_bbox = det.bbox
         
+        x1, y1, x2, y2 = draw_bbox
         cv2.rectangle(output, (x1, y1), (x2, y2), color, 2)
         label = f"{det.label or det.type.value} ({det.confidence:.0%})"
-        (label_w, label_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-        cv2.rectangle(output, (x1, y1 - label_h - 10), (x1 + label_w, y1), color, -1)
-        cv2.putText(output, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        (label_w, label_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+        # Fon rənginə görə yazı rəngini seç (açıq fon = qara yazı, tünd fon = ağ yazı)
+        brightness = (color[0] + color[1] + color[2]) / 3
+        text_color = (0, 0, 0) if brightness > 127 else (255, 255, 255)
+        cv2.rectangle(output, (x1, y1 - label_h - 10), (x1 + label_w + 4, y1), color, -1)
+        cv2.putText(output, label, (x1 + 2, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color, 2)
     
     return output

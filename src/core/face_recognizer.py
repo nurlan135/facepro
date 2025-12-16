@@ -80,7 +80,7 @@ class FaceRecognizer:
             logger.error(f"Failed to add face: {e}")
             return False
     
-    def recognize(self, frame: np.ndarray, person_bbox: Tuple[int, int, int, int]) -> Tuple[Optional[str], Optional[int], float, bool]:
+    def recognize(self, frame: np.ndarray, person_bbox: Tuple[int, int, int, int]) -> Tuple[Optional[str], Optional[int], float, bool, Optional[Tuple[int, int, int, int]]]:
         """
         Frame-də üz tanıyır.
         
@@ -89,7 +89,8 @@ class FaceRecognizer:
             person_bbox: Şəxsin bounding box-u
             
         Returns:
-            (ad, user_id, confidence, üz_görünürmü)
+            (ad, user_id, confidence, üz_görünürmü, üz_bbox)
+            üz_bbox: (x1, y1, x2, y2) frame koordinatlarında
         """
         try:
             self._ensure_loaded()
@@ -99,7 +100,7 @@ class FaceRecognizer:
             person_crop = frame[y1:y2, x1:x2]
             
             if person_crop.size == 0:
-                return None, None, 0.0, False
+                return None, None, 0.0, False, None
             
             # RGB-ə çevir
             rgb_crop = cv2.cvtColor(person_crop, cv2.COLOR_BGR2RGB)
@@ -108,13 +109,18 @@ class FaceRecognizer:
             face_locations = self._face_recognition.face_locations(rgb_crop)
             
             if not face_locations:
-                return None, None, 0.0, False  # Üz görünmür
+                return None, None, 0.0, False, None  # Üz görünmür
             
             # Üz encoding-i çıxar
             face_encodings = self._face_recognition.face_encodings(rgb_crop, face_locations)
             
+            # Üz koordinatlarını frame koordinatlarına çevir
+            # face_locations format: (top, right, bottom, left)
+            ft, fr, fb, fl = face_locations[0]
+            face_bbox = (x1 + fl, y1 + ft, x1 + fr, y1 + fb)
+            
             if not face_encodings:
-                return None, None, 0.0, True  # Üz var amma encoding çıxmadı
+                return None, None, 0.0, True, face_bbox  # Üz var amma encoding çıxmadı
             
             # Tanınmış üzlərlə müqayisə
             best_match_name = None
@@ -131,13 +137,13 @@ class FaceRecognizer:
             if best_match_name and best_distance <= self._tolerance:
                 confidence = 1.0 - best_distance
                 user_id = self._name_to_id.get(best_match_name)
-                return best_match_name, user_id, confidence, True
+                return best_match_name, user_id, confidence, True, face_bbox
             
-            return None, None, 0.0, True  # Üz var amma tanınmadı
+            return None, None, 0.0, True, face_bbox  # Üz var amma tanınmadı
             
         except Exception as e:
             logger.error(f"Face recognition failed: {e}")
-            return None, None, 0.0, False
+            return None, None, 0.0, False, None
     
     def load_from_database(self) -> int:
         """Database-dən bütün üzləri yükləyir."""

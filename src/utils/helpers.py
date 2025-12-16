@@ -506,9 +506,10 @@ def _ensure_db_initialized(db_path: str):
             CREATE TABLE IF NOT EXISTS reid_embeddings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,
-                embedding BLOB NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY(user_id) REFERENCES users(id)
+                vector BLOB NOT NULL,
+                confidence REAL,
+                captured_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         """)
         

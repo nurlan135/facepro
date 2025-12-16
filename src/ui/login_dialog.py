@@ -239,12 +239,16 @@ class LoginDialog(QDialog):
         exit_btn.setObjectName("ExitBtn")
         exit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         exit_btn.clicked.connect(self._exit_app)
+        exit_btn.setAutoDefault(False)  # Enter düyməsi ilə avtomatik aktivləşməsin
+        exit_btn.setDefault(False)
         btn_layout.addWidget(exit_btn)
         
         self.login_btn = QPushButton(tr("login_btn_signin"))
         self.login_btn.setObjectName("LoginBtn")
         self.login_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.login_btn.clicked.connect(self._attempt_login)
+        self.login_btn.setAutoDefault(False)  # Enter düyməsi ilə avtomatik aktivləşməsin
+        self.login_btn.setDefault(False)
         btn_layout.addWidget(self.login_btn, 1)
         
         layout.addLayout(btn_layout)
@@ -286,20 +290,33 @@ class LoginDialog(QDialog):
         self.login_btn.setText(tr("login_signing_in"))
         QApplication.processEvents()
         
-        success, message = self._auth_manager.authenticate(username, password)
-        
-        self.login_btn.setEnabled(True)
-        self.login_btn.setText(tr("login_btn_signin"))
-        
-        if success:
-            self.login_successful.emit()
-            self.accept()
-        else:
-            if "locked" in message.lower():
-                self._show_locked(message)
-            else:
-                self._show_error(message)
+        try:
+            print(f"DEBUG: Attempting login for user: {username}")
+            success, message = self._auth_manager.authenticate(username, password)
+            print(f"DEBUG: Auth result - success={success}, message={message}")
             
+            self.login_btn.setEnabled(True)
+            self.login_btn.setText(tr("login_btn_signin"))
+            
+            if success:
+                print("DEBUG: Login successful, accepting dialog")
+                self.login_successful.emit()
+                self.accept()
+            else:
+                print(f"DEBUG: Login failed, showing error: {message}")
+                if "locked" in message.lower():
+                    self._show_locked(message)
+                else:
+                    self._show_error(message)
+                
+                self.password_input.clear()
+                self.password_input.setFocus()
+                print("DEBUG: Error shown, dialog should stay open")
+        except Exception as e:
+            print(f"DEBUG: Exception caught: {e}")
+            self.login_btn.setEnabled(True)
+            self.login_btn.setText(tr("login_btn_signin"))
+            self._show_error(f"Authentication error: {str(e)}")
             self.password_input.clear()
             self.password_input.setFocus()
     

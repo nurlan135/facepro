@@ -12,6 +12,10 @@ COLORS = {
     'bg_light': '#252731',      # Card / Element Background
     'bg_card': '#252731',       # Card Background
     
+    # Surface Colors (aliases for compatibility)
+    'surface': '#252731',       # Same as bg_light
+    'surface_light': '#2c303b', # Slightly lighter surface
+    
     # Text Colors
     'text_primary': '#FFFFFF',  # White
     'text_secondary': '#A0AEC0', # Soft Gray
