@@ -1,0 +1,4 @@
+# file: C:\Users\HP\Projects\facepro\src\utils\logger.py
+# hypothesis_version: 6.148.7
+
+['%Y-%m-%d %H:%M:%S', 'Bu debug mesajidir', 'Bu error mesajidir', 'Bu info mesajidir', 'Bu warning mesajidir', 'FacePro', 'FaceProLogger', '__main__', 'data', 'logs', 'utf-8']

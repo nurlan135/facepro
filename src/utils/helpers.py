@@ -505,6 +505,23 @@ def _ensure_db_initialized(db_path: str):
             )
         """)
         
+        # Gait Embeddings table (Yeriş tanıma vektorları)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS gait_embeddings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                embedding BLOB NOT NULL,
+                confidence REAL DEFAULT 1.0,
+                captured_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+        
+        # Index for faster gait lookups by user_id
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_gait_user ON gait_embeddings(user_id)
+        """)
+        
         conn.commit()
         conn.close()
     except Exception as e:

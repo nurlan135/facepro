@@ -162,8 +162,18 @@ class ObjectDetector:
             if self._model_path and os.path.exists(self._model_path):
                 self._model = YOLO(self._model_path)
             else:
-                # Default YOLOv8n
-                self._model = YOLO('yolov8n.pt')
+                # Default: models/ qovluğundan oxu
+                models_dir = os.path.join(
+                    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                    'models'
+                )
+                default_path = os.path.join(models_dir, 'yolov8n.pt')
+                
+                if os.path.exists(default_path):
+                    self._model = YOLO(default_path)
+                else:
+                    # Fallback: ultralytics avtomatik yükləyəcək
+                    self._model = YOLO('yolov8n.pt')
             
             logger.info("YOLO model loaded")
             

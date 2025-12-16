@@ -11,9 +11,9 @@ FacePro/
 │   ├── faces/              # Registered user reference images (jpg)
 │   └── logs/               # Event snapshots (saved detections)
 ├── models/
-│   ├── yolov8n.pt          # Object Detection weights
-│   ├── dlib_face_recognition_resnet_model_v1.dat
-│   └── efficientnet_b0.pth # Re-ID Feature Extractor
+│   ├── yolov8n.pt          # Object Detection weights (YOLOv8 nano)
+│   └── efficientnet_b0.pth # Re-ID Feature Extractor (optional, uses pretrained if missing)
+│   # Note: dlib face model is auto-downloaded by face_recognition library
 ├── src/
 │   ├── core/
 │   │   ├── __init__.py

@@ -37,6 +37,22 @@ CREATE TABLE IF NOT EXISTS events (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 4.5 Gait Embeddings (Walking Pattern Vectors)
+-- This table stores gait recognition embeddings for person identification
+-- when face is not visible. Embeddings are passively enrolled when face
+-- recognition succeeds.
+CREATE TABLE IF NOT EXISTS gait_embeddings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    embedding BLOB NOT NULL,   -- Serialized numpy array (256d GaitSet output)
+    confidence REAL DEFAULT 1.0,
+    captured_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Index for faster gait lookups
+CREATE INDEX IF NOT EXISTS idx_gait_user ON gait_embeddings(user_id);
+
 -- 5. Application Users (Login System)
 -- Separate from 'users' table which is for face recognition
 CREATE TABLE IF NOT EXISTS app_users (
