@@ -4,8 +4,10 @@ FacePro - Smart Security System
 Lokal AI ilə işləyən ağıllı təhlükəsizlik sistemi.
 
 Bu entry point lisenziya yoxlaması ilə başlayır.
-- Lisenziya varsa -> GUI açılır
-- Lisenziya yoxdursa -> GUI dialog göstərilir
+- Lisenziya varsa -> Login sistemi yoxlanılır
+- Hesab yoxdursa -> SetupWizard göstərilir
+- Hesab varsa -> LoginDialog göstərilir
+- Uğurlu girişdən sonra -> MainWindow açılır
 
 (c) 2025 NurMurDev
 """
@@ -66,7 +68,42 @@ def main():
             info("License still invalid after activation attempt")
             return 1
     
-    info("License valid - starting application")
+    info("License valid - checking user accounts")
+    
+    # User authentication system
+    from src.utils.auth_manager import get_auth_manager
+    from src.ui.setup_wizard import SetupWizardDialog
+    from src.ui.login_dialog import LoginDialog
+    
+    auth_manager = get_auth_manager()
+    
+    # Check if any user accounts exist
+    if not auth_manager.has_accounts():
+        info("No user accounts found - showing setup wizard")
+        
+        # First-time setup: create admin account
+        setup_dialog = SetupWizardDialog()
+        result = setup_dialog.exec()
+        
+        if result != setup_dialog.DialogCode.Accepted:
+            info("Setup wizard cancelled, exiting...")
+            return 1
+        
+        info("Admin account created successfully")
+    
+    # Show login dialog
+    info("Showing login dialog")
+    login_dialog = LoginDialog()
+    result = login_dialog.exec()
+    
+    if result != login_dialog.DialogCode.Accepted:
+        info("Login cancelled, exiting...")
+        return 1
+    
+    # Get current user info for logging
+    current_user = auth_manager.get_current_user()
+    if current_user:
+        info(f"User '{current_user.username}' logged in as {current_user.role}")
     
     # Əsas pəncərəni yaratmaq
     from src.ui.main_window import MainWindow

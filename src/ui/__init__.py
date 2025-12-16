@@ -5,6 +5,7 @@ from .styles import DARK_THEME, COLORS, apply_theme, get_status_color
 from .video_widget import VideoWidget, VideoGrid, StatusIndicator
 from .settings_dialog import SettingsDialog, CameraDialog
 from .main_window import MainWindow
+from .login_dialog import LoginDialog, show_login_dialog
 
 __all__ = [
     # Styles
@@ -12,7 +13,7 @@ __all__ = [
     # Video
     'VideoWidget', 'VideoGrid', 'StatusIndicator',
     # Dialogs
-    'SettingsDialog', 'CameraDialog',
+    'SettingsDialog', 'CameraDialog', 'LoginDialog', 'show_login_dialog',
     # Main
     'MainWindow',
 ]

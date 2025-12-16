@@ -19,6 +19,9 @@ class SidebarWidget(QWidget):
     # Signals for button clicks
     manage_faces_clicked = pyqtSignal()
     settings_clicked = pyqtSignal()
+    user_management_clicked = pyqtSignal()
+    change_password_clicked = pyqtSignal()
+    logout_clicked = pyqtSignal()
     exit_clicked = pyqtSignal()
     
     def __init__(self, parent=None):
@@ -50,11 +53,17 @@ class SidebarWidget(QWidget):
         icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         pc_layout.addWidget(icon_lbl)
         
-        # User Name
+        # User Name (will be updated with actual username)
         self.admin_lbl = QLabel(tr('sidebar_admin'))
         self.admin_lbl.setStyleSheet("font-size: 16px; font-weight: bold;")
         self.admin_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         pc_layout.addWidget(self.admin_lbl)
+        
+        # Role Badge
+        self.role_lbl = QLabel("Admin")
+        self.role_lbl.setStyleSheet(f"font-size: 12px; color: {COLORS['text_secondary']};")
+        self.role_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        pc_layout.addWidget(self.role_lbl)
         
         # Active Status Badge
         self.status_btn = QPushButton(f"• {tr('sidebar_active')}")
@@ -72,7 +81,7 @@ class SidebarWidget(QWidget):
         layout.addWidget(profile_card)
         layout.addSpacing(20)
         
-        # Menu Buttons
+        # Menu Buttons - Admin only buttons
         self.btn_manage = QPushButton(f"👥  {tr('sidebar_manage_faces')}")
         self.btn_manage.setProperty("class", "sidebar_btn")
         self.btn_manage.clicked.connect(self.manage_faces_clicked.emit)
@@ -82,6 +91,18 @@ class SidebarWidget(QWidget):
         self.btn_settings.setProperty("class", "sidebar_btn")
         self.btn_settings.clicked.connect(self.settings_clicked.emit)
         layout.addWidget(self.btn_settings)
+        
+        # User Management Button (Admin only)
+        self.btn_user_mgmt = QPushButton(f"👤  User Management")
+        self.btn_user_mgmt.setProperty("class", "sidebar_btn")
+        self.btn_user_mgmt.clicked.connect(self.user_management_clicked.emit)
+        layout.addWidget(self.btn_user_mgmt)
+        
+        # Change Password Button (All users)
+        self.btn_change_pwd = QPushButton(f"🔑  Change Password")
+        self.btn_change_pwd.setProperty("class", "sidebar_btn")
+        self.btn_change_pwd.clicked.connect(self.change_password_clicked.emit)
+        layout.addWidget(self.btn_change_pwd)
         
         layout.addStretch()
         
@@ -98,7 +119,13 @@ class SidebarWidget(QWidget):
         
         layout.addSpacing(10)
         
-        # Logout / Exit Button
+        # Logout Button
+        self.btn_logout = QPushButton(f"🔓  Logout")
+        self.btn_logout.setProperty("class", "sidebar_btn")
+        self.btn_logout.clicked.connect(self.logout_clicked.emit)
+        layout.addWidget(self.btn_logout)
+        
+        # Exit Button
         self.btn_exit = QPushButton(f"🚪 {tr('sidebar_exit')}")
         self.btn_exit.setProperty("class", "logout_btn")
         self.btn_exit.clicked.connect(self.exit_clicked.emit)
@@ -109,11 +136,36 @@ class SidebarWidget(QWidget):
         self.stat_faces_label.setText(f"{tr('sidebar_registered_faces')}: {faces_count}")
         self.stat_detections_label.setText(f"{tr('sidebar_total_detections')}: {detections_count}")
     
+    def set_user_info(self, username: str, role: str):
+        """
+        Update sidebar with current user info.
+        
+        Args:
+            username: Current user's username
+            role: User role ('admin' or 'operator')
+        """
+        self.admin_lbl.setText(username)
+        self.role_lbl.setText(role.capitalize())
+        
+        # Apply role-based visibility
+        is_admin = role == 'admin'
+        
+        # Hide/disable admin-only features for operators
+        self.btn_manage.setVisible(is_admin)
+        self.btn_settings.setVisible(is_admin)
+        self.btn_user_mgmt.setVisible(is_admin)
+        
+        # Change password is available to all users
+        self.btn_change_pwd.setVisible(True)
+    
     def update_language(self):
         """Update all text for live language change."""
-        self.admin_lbl.setText(tr('sidebar_admin'))
+        # Don't override username with translation
         self.status_btn.setText(f"• {tr('sidebar_active')}")
         self.btn_manage.setText(f"👥  {tr('sidebar_manage_faces')}")
         self.btn_settings.setText(f"⚙  {tr('sidebar_settings')}")
+        self.btn_user_mgmt.setText(f"👤  User Management")
+        self.btn_change_pwd.setText(f"🔑  Change Password")
+        self.btn_logout.setText(f"🔓  Logout")
         self.stats_group.setTitle(f"📊 {tr('sidebar_statistics')}")
         self.btn_exit.setText(f"🚪 {tr('sidebar_exit')}")

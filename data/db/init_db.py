@@ -60,6 +60,21 @@ def init_database():
         )
     ''')
     
+    # 5. App Users (Application login accounts - separate from face recognition users)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS app_users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            salt TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'operator',
+            is_locked INTEGER DEFAULT 0,
+            lock_until TIMESTAMP,
+            failed_attempts INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
     # Dəyişiklikləri saxlayırıq
     conn.commit()
     conn.close()

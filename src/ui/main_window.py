@@ -49,6 +49,11 @@ from src.hardware.telegram_notifier import get_telegram_notifier
 # Dashboard components
 from src.ui.dashboard import SidebarWidget, HomePage, CameraPage, LogsPage, ActivityItem
 
+# Auth components
+from src.utils.auth_manager import get_auth_manager
+from src.ui.user_management import UserManagementDialog
+from src.ui.change_password import ChangePasswordDialog
+
 logger = get_logger()
 
 
@@ -65,6 +70,7 @@ class MainWindow(QMainWindow):
         self._camera_manager = CameraManager()
         self._ai_worker: Optional[AIWorker] = None
         self._telegram_notifier = get_telegram_notifier()
+        self._auth_manager = get_auth_manager()
         
         # State
         self._is_running = False
@@ -77,12 +83,16 @@ class MainWindow(QMainWindow):
         
         self._setup_ui()
         self._setup_tray()
+        self._setup_auth_integration()
         
         # Connect language change signal
         get_translator().language_changed.connect(self._on_language_changed)
         
         # Initial Data Load for stats
         self._update_stats()
+        
+        # Apply role-based UI restrictions
+        self._apply_role_based_ui()
         
         logger.info("MainWindow initialized (Dashboard Design)")
 
@@ -99,6 +109,9 @@ class MainWindow(QMainWindow):
         self.sidebar = SidebarWidget()
         self.sidebar.manage_faces_clicked.connect(self._manage_faces)
         self.sidebar.settings_clicked.connect(self._show_settings)
+        self.sidebar.user_management_clicked.connect(self._show_user_management)
+        self.sidebar.change_password_clicked.connect(self._show_change_password)
+        self.sidebar.logout_clicked.connect(self._logout)
         self.sidebar.exit_clicked.connect(self._quit_application)
         main_layout.addWidget(self.sidebar)
         
@@ -297,11 +310,21 @@ class MainWindow(QMainWindow):
         self.sidebar.update_stats(self._known_faces_count, self._total_detections_count)
 
     def _manage_faces(self):
+        """Manage faces dialog (Admin only)."""
+        if not self._auth_manager.can_enroll_faces():
+            QMessageBox.warning(self, "Access Denied", "You don't have permission to manage faces.")
+            return
+        
         dialog = ManageFacesDialog(self)
         dialog.exec()
         self._update_stats()
 
     def _add_known_face(self):
+        """Add known face dialog (Admin only)."""
+        if not self._auth_manager.can_enroll_faces():
+            QMessageBox.warning(self, "Access Denied", "You don't have permission to enroll faces.")
+            return
+        
         dialog = FaceEnrollmentDialog(parent=self)
         if dialog.exec():
             self._update_stats()
@@ -309,10 +332,133 @@ class MainWindow(QMainWindow):
                 self._ai_worker.reload_known_faces()
 
     def _show_settings(self):
+        """Show settings dialog (Admin only)."""
+        if not self._auth_manager.can_access_settings():
+            QMessageBox.warning(self, "Access Denied", "You don't have permission to access settings.")
+            return
+        
         dialog = SettingsDialog(self)
         dialog.exec()
         self._config = load_config()
         self._cameras_config = load_cameras()
+    
+    def _show_user_management(self):
+        """Show user management dialog (Admin only)."""
+        if not self._auth_manager.can_manage_users():
+            QMessageBox.warning(self, "Access Denied", "You don't have permission to manage users.")
+            return
+        
+        dialog = UserManagementDialog(self)
+        dialog.exec()
+    
+    def _show_change_password(self):
+        """Show change password dialog (All users)."""
+        current_user = self._auth_manager.get_current_user()
+        if not current_user:
+            QMessageBox.warning(self, "Error", "No user logged in.")
+            return
+        
+        dialog = ChangePasswordDialog(current_user.user_id, self)
+        dialog.exec()
+    
+    def _setup_auth_integration(self):
+        """Setup authentication system integration."""
+        # Connect auth manager signals
+        self._auth_manager.logout_requested.connect(self._on_logout_requested)
+        self._auth_manager.session_timeout.connect(self._on_session_timeout)
+        
+        # Setup session timeout timer (check every minute)
+        self._session_timer = QTimer(self)
+        self._session_timer.timeout.connect(self._check_session_timeout)
+        self._session_timer.start(60000)  # Check every 60 seconds
+        
+        # Install event filter to track user activity
+        QApplication.instance().installEventFilter(self)
+    
+    def _apply_role_based_ui(self):
+        """Apply role-based UI restrictions based on current user."""
+        current_user = self._auth_manager.get_current_user()
+        if not current_user:
+            return
+        
+        # Update sidebar with user info
+        self.sidebar.set_user_info(current_user.username, current_user.role)
+        
+        logger.info(f"Applied role-based UI for user '{current_user.username}' ({current_user.role})")
+    
+    def _logout(self):
+        """Handle manual logout."""
+        reply = QMessageBox.question(
+            self, "Logout", "Are you sure you want to logout?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._auth_manager.logout()
+    
+    @pyqtSlot()
+    def _on_logout_requested(self):
+        """Handle logout signal from auth manager."""
+        logger.info("Logout requested - stopping system and closing window")
+        
+        # Stop camera system
+        if self._is_running:
+            self._stop_system()
+        
+        # Close the main window
+        self.close()
+        
+        # Show login dialog again
+        from src.ui.login_dialog import LoginDialog
+        login_dialog = LoginDialog()
+        result = login_dialog.exec()
+        
+        if result == login_dialog.DialogCode.Accepted:
+            # Re-apply role-based UI for new user
+            self._apply_role_based_ui()
+            self.show()
+        else:
+            # User cancelled login, exit application
+            QApplication.quit()
+    
+    @pyqtSlot()
+    def _on_session_timeout(self):
+        """Handle session timeout signal."""
+        logger.info("Session timeout - auto logout triggered")
+        QMessageBox.information(
+            self, "Session Timeout", 
+            "Your session has expired due to inactivity. Please log in again."
+        )
+    
+    def _check_session_timeout(self):
+        """Periodically check if session has timed out."""
+        if self._auth_manager.is_logged_in():
+            # This will emit session_timeout signal if expired
+            self._auth_manager.check_session_timeout()
+    
+    def eventFilter(self, obj, event):
+        """
+        Event filter to track user activity and reset session timer.
+        
+        Tracks mouse and keyboard events to detect user activity.
+        Requirements: 6.1 - Session timeout based on inactivity
+        """
+        from PyQt6.QtCore import QEvent
+        
+        # Track user activity events
+        activity_events = [
+            QEvent.Type.MouseButtonPress,
+            QEvent.Type.MouseButtonRelease,
+            QEvent.Type.MouseMove,
+            QEvent.Type.KeyPress,
+            QEvent.Type.KeyRelease,
+            QEvent.Type.Wheel
+        ]
+        
+        if event.type() in activity_events:
+            # Reset activity timer on user interaction
+            self._auth_manager.reset_activity_timer()
+        
+        return super().eventFilter(obj, event)
 
     def _export_events(self):
         """Hadisələri CSV formatında ixrac edir."""
@@ -380,6 +526,14 @@ class MainWindow(QMainWindow):
         QApplication.quit()
 
     def closeEvent(self, event):
+        # Check if this is a logout-triggered close (should not minimize to tray)
+        if not self._auth_manager.is_logged_in():
+            # User logged out, accept the close
+            if hasattr(self, '_session_timer'):
+                self._session_timer.stop()
+            event.accept()
+            return
+        
         if self.isVisible():
             event.ignore()
             self.hide()
