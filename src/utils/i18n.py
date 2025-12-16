@@ -249,7 +249,38 @@ TRANSLATIONS = {
         "connection_settings": "Connection Settings",
         "camera_open_failed": "Failed to open camera",
         "frame_read_failed": "Failed to read frame",
-        "cancel": "Cancel"
+        "cancel": "Cancel",
+        
+        # Camera Modes
+        "camera_control": "Camera Control",
+        "working_mode": "Working Mode",
+        "mode_security": "Security Mode (Face Recognition)",
+        "mode_baby": "Baby Monitoring Mode",
+        "mode_object": "Object Detection Mode",
+        
+        # Camera Action Buttons
+        "btn_select_camera": "Select Camera",
+        "btn_start": "Start",
+        "btn_stop": "Stop",
+        "status_no_camera": "No camera selected",
+        "status_camera_selected": "Selected camera",
+        
+        # RTSP Dialog Extended
+        "rtsp_test_duration": "Test may take 10-30 seconds",
+        "rtsp_example_values": "Example Values",
+        "rtsp_connection_guide": "Camera Connection Guide",
+        "rtsp_quick_start": "Quick Start",
+        "rtsp_quick_start_1": "1. Find your camera's IP address (e.g., 192.168.1.100)",
+        "rtsp_quick_start_2": "2. Prepare username/password (usually admin/12345)",
+        "rtsp_quick_start_3": "3. Use one of the URL formats above",
+        "rtsp_quick_start_4": "4. Click \"Test\" button (10-30 seconds)",
+        "rtsp_important_notes": "Important Notes",
+        "rtsp_note_network": "Camera and PC must be on the same network",
+        "rtsp_note_port": "Port: 554 for RTSP, 8080 for HTTP",
+        "rtsp_note_path": "Path: can be /stream, /live, /h264 etc.",
+        "rtsp_enter_url": "Enter camera URL above and click 'Test' button",
+        "rtsp_preview_placeholder": "Camera preview will appear here",
+        "rtsp_preview_hint": "Enter URL and test"
     },
     
     "az": {
@@ -496,7 +527,38 @@ TRANSLATIONS = {
         "connection_settings": "Bağlantı Ayarları",
         "camera_open_failed": "Kamera açıla bilmədi",
         "frame_read_failed": "Frame oxuna bilmədi",
-        "cancel": "Ləğv et"
+        "cancel": "Ləğv et",
+        
+        # Camera Modes
+        "camera_control": "Kamera Kontrolü",
+        "working_mode": "İş Rejimi",
+        "mode_security": "Təhlükəsizlik Rejimi (Üz Tanıma)",
+        "mode_baby": "Uşaq Nəzarəti Rejimi",
+        "mode_object": "Obyekt Aşkarlama Rejimi",
+        
+        # Camera Action Buttons
+        "btn_select_camera": "Kamera Seç",
+        "btn_start": "Başlat",
+        "btn_stop": "Dayandır",
+        "status_no_camera": "Kamera seçilməyib",
+        "status_camera_selected": "Seçilmiş kamera",
+        
+        # RTSP Dialog Extended
+        "rtsp_test_duration": "Test 10-30 saniyə çəkə bilər",
+        "rtsp_example_values": "Nümunə Dəyərlər",
+        "rtsp_connection_guide": "Kamera Bağlantı Təlimatı",
+        "rtsp_quick_start": "Sürətli Başlanğıc",
+        "rtsp_quick_start_1": "1. Kameranızın IP adresini tapın (ör: 192.168.1.100)",
+        "rtsp_quick_start_2": "2. İstifadəçi adı/şifrə hazırlayın (ümumiyyətlə admin/12345)",
+        "rtsp_quick_start_3": "3. Yuxarıdakı URL formatlarından birini istifadə edin",
+        "rtsp_quick_start_4": "4. \"Test Et\" düyməsinə klikləyin (10-30 saniyə)",
+        "rtsp_important_notes": "Vacib Qeydlər",
+        "rtsp_note_network": "Kamera və PC eyni şəbəkədə olmalıdır",
+        "rtsp_note_port": "Port: RTSP üçün 554, HTTP üçün 8080",
+        "rtsp_note_path": "Yol: /stream, /live, /h264 kimi ola bilər",
+        "rtsp_enter_url": "Kamera URL-inizi yuxarıdakı sahəyə daxil edin və 'Test Et' düyməsinə klikləyin",
+        "rtsp_preview_placeholder": "Kamera önizləməsi burada görünəcək",
+        "rtsp_preview_hint": "URL daxil edin və test edin"
     },
     
     "ru": {
@@ -743,7 +805,38 @@ TRANSLATIONS = {
         "connection_settings": "Настройки соединения",
         "camera_open_failed": "Не удалось открыть камеру",
         "frame_read_failed": "Не удалось прочитать кадр",
-        "cancel": "Отмена"
+        "cancel": "Отмена",
+        
+        # Camera Modes
+        "camera_control": "Управление камерой",
+        "working_mode": "Режим работы",
+        "mode_security": "Режим безопасности (Распознавание лиц)",
+        "mode_baby": "Режим наблюдения за ребенком",
+        "mode_object": "Режим обнаружения объектов",
+        
+        # Camera Action Buttons
+        "btn_select_camera": "Выбрать камеру",
+        "btn_start": "Запустить",
+        "btn_stop": "Остановить",
+        "status_no_camera": "Камера не выбрана",
+        "status_camera_selected": "Выбранная камера",
+        
+        # RTSP Dialog Extended
+        "rtsp_test_duration": "Тест может занять 10-30 секунд",
+        "rtsp_example_values": "Примеры значений",
+        "rtsp_connection_guide": "Руководство по подключению камеры",
+        "rtsp_quick_start": "Быстрый старт",
+        "rtsp_quick_start_1": "1. Найдите IP-адрес камеры (напр., 192.168.1.100)",
+        "rtsp_quick_start_2": "2. Подготовьте логин/пароль (обычно admin/12345)",
+        "rtsp_quick_start_3": "3. Используйте один из форматов URL выше",
+        "rtsp_quick_start_4": "4. Нажмите кнопку \"Тест\" (10-30 секунд)",
+        "rtsp_important_notes": "Важные замечания",
+        "rtsp_note_network": "Камера и ПК должны быть в одной сети",
+        "rtsp_note_port": "Порт: 554 для RTSP, 8080 для HTTP",
+        "rtsp_note_path": "Путь: может быть /stream, /live, /h264 и т.д.",
+        "rtsp_enter_url": "Введите URL камеры выше и нажмите кнопку 'Тест'",
+        "rtsp_preview_placeholder": "Здесь появится предпросмотр камеры",
+        "rtsp_preview_hint": "Введите URL и протестируйте"
     }
 }
 

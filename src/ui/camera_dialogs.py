@@ -266,7 +266,7 @@ class LocalCameraSelector(QDialog):
 
 
 class RTSPConfigDialog(QDialog):
-    """RTSP kamera konfiqurasiya dialoqu."""
+    """RTSP kamera konfiqurasiya dialoqu - şəkildəki kimi detallı."""
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -276,29 +276,37 @@ class RTSPConfigDialog(QDialog):
     
     def _setup_ui(self):
         """UI qurulumu."""
-        self.setWindowTitle(tr('rtsp_config_title') if tr('rtsp_config_title') != 'rtsp_config_title' else "RTSP Kamera Konfiqurasiyası")
-        self.setMinimumWidth(500)
+        self.setWindowTitle(tr('rtsp_config_title'))
+        self.setMinimumSize(700, 750)
         self.setStyleSheet(DARK_THEME)
         
         layout = QVBoxLayout(self)
         layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(25, 25, 25, 25)
         
         # Title
-        title = QLabel("🌐 " + (tr('rtsp_config_title') if tr('rtsp_config_title') != 'rtsp_config_title' else "RTSP Kamera Konfiqurasiyası"))
-        title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {COLORS['primary']};")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title = QLabel(f"🌐 {tr('rtsp_config_title')}")
+        title.setStyleSheet(f"font-size: 20px; font-weight: bold; color: {COLORS['primary']};")
         layout.addWidget(title)
         
+        # Scroll area for content
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setSpacing(15)
+        
         # Form
-        form_group = QGroupBox(tr('connection_settings') if tr('connection_settings') != 'connection_settings' else "Bağlantı Ayarları")
+        form_group = QGroupBox(tr('connection_settings'))
         form_group.setStyleSheet(f"""
             QGroupBox {{
                 font-weight: bold;
                 border: 1px solid {COLORS['border']};
                 border-radius: 8px;
                 margin-top: 10px;
-                padding-top: 10px;
+                padding-top: 15px;
             }}
             QGroupBox::title {{
                 subcontrol-origin: margin;
@@ -308,71 +316,70 @@ class RTSPConfigDialog(QDialog):
             }}
         """)
         form_layout = QFormLayout(form_group)
-        form_layout.setSpacing(10)
+        form_layout.setSpacing(12)
+        form_layout.setContentsMargins(15, 20, 15, 15)
         
         # Camera name
         self.name_edit = QLineEdit()
         self.name_edit.setPlaceholderText("IP Camera 1")
-        form_layout.addRow(tr('camera_name') if tr('camera_name') != 'camera_name' else "Kamera Adı:", self.name_edit)
+        form_layout.addRow(f"{tr('camera_name')}:", self.name_edit)
         
         # IP Address
         self.ip_edit = QLineEdit()
         self.ip_edit.setPlaceholderText("192.168.1.100")
         self.ip_edit.textChanged.connect(self._update_url_preview)
-        form_layout.addRow(tr('ip_address') if tr('ip_address') != 'ip_address' else "IP Ünvanı:", self.ip_edit)
+        form_layout.addRow(f"{tr('ip_address')}:", self.ip_edit)
         
         # Port
         self.port_spin = QSpinBox()
         self.port_spin.setRange(1, 65535)
         self.port_spin.setValue(554)
         self.port_spin.valueChanged.connect(self._update_url_preview)
-        form_layout.addRow(tr('port') if tr('port') != 'port' else "Port:", self.port_spin)
+        form_layout.addRow(f"{tr('port')}:", self.port_spin)
         
         # Username
         self.username_edit = QLineEdit()
         self.username_edit.setPlaceholderText("admin")
         self.username_edit.textChanged.connect(self._update_url_preview)
-        form_layout.addRow(tr('username') if tr('username') != 'username' else "İstifadəçi:", self.username_edit)
+        form_layout.addRow(f"{tr('username')}:", self.username_edit)
         
         # Password
         self.password_edit = QLineEdit()
         self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password_edit.setPlaceholderText("12345")
         self.password_edit.textChanged.connect(self._update_url_preview)
-        form_layout.addRow(tr('password') if tr('password') != 'password' else "Şifrə:", self.password_edit)
+        form_layout.addRow(f"{tr('password')}:", self.password_edit)
         
         # Brand
         self.brand_combo = QComboBox()
-        self.brand_combo.addItems(["Hikvision", "Dahua", "Generic"])
+        self.brand_combo.addItems(["Hikvision", "Dahua", "TP-Link", "Generic"])
         self.brand_combo.currentIndexChanged.connect(self._update_url_preview)
-        form_layout.addRow(tr('brand') if tr('brand') != 'brand' else "Marka:", self.brand_combo)
+        form_layout.addRow(f"{tr('brand')}:", self.brand_combo)
         
         # Channel
         self.channel_spin = QSpinBox()
         self.channel_spin.setRange(1, 16)
         self.channel_spin.setValue(1)
         self.channel_spin.valueChanged.connect(self._update_url_preview)
-        form_layout.addRow(tr('channel') if tr('channel') != 'channel' else "Kanal:", self.channel_spin)
+        form_layout.addRow(f"{tr('channel')}:", self.channel_spin)
         
         # Stream type
         self.stream_combo = QComboBox()
-        self.stream_combo.addItems([
-            tr('main_stream') if tr('main_stream') != 'main_stream' else "Əsas axın",
-            tr('sub_stream') if tr('sub_stream') != 'sub_stream' else "Köməkçi axın"
-        ])
+        self.stream_combo.addItems([tr('main_stream'), tr('sub_stream')])
         self.stream_combo.currentIndexChanged.connect(self._update_url_preview)
-        form_layout.addRow(tr('stream_type') if tr('stream_type') != 'stream_type' else "Axın növü:", self.stream_combo)
+        form_layout.addRow(f"{tr('stream_type')}:", self.stream_combo)
         
-        layout.addWidget(form_group)
+        scroll_layout.addWidget(form_group)
         
-        # URL Preview
-        url_group = QGroupBox(tr('url_preview') if tr('url_preview') != 'url_preview' else "URL Önizləmə")
+        # URL Preview with full URL input
+        url_group = QGroupBox(tr('url_preview'))
         url_group.setStyleSheet(f"""
             QGroupBox {{
                 font-weight: bold;
                 border: 1px solid {COLORS['border']};
                 border-radius: 8px;
                 margin-top: 10px;
-                padding-top: 10px;
+                padding-top: 15px;
             }}
             QGroupBox::title {{
                 subcontrol-origin: margin;
@@ -382,65 +389,200 @@ class RTSPConfigDialog(QDialog):
             }}
         """)
         url_layout = QVBoxLayout(url_group)
+        url_layout.setContentsMargins(15, 20, 15, 15)
         
-        self.url_label = QLabel()
-        self.url_label.setStyleSheet(f"""
-            background-color: {COLORS['bg_dark']};
-            padding: 10px;
-            border-radius: 5px;
-            font-family: 'Consolas', monospace;
-            font-size: 12px;
-            color: {COLORS['success']};
+        # Direct URL input (editable)
+        url_hint = QLabel("Birbaşa URL yapışdırın və ya yuxarıdakı sahələri doldurun:")
+        url_hint.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 11px;")
+        url_layout.addWidget(url_hint)
+        
+        self.url_edit = QLineEdit()
+        self.url_edit.setPlaceholderText("rtsp://admin:password@192.168.1.100:554/stream")
+        self.url_edit.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {COLORS['bg_dark']};
+                padding: 12px;
+                border-radius: 5px;
+                border: 1px solid {COLORS['border']};
+                font-family: 'Consolas', monospace;
+                font-size: 13px;
+                color: {COLORS['success']};
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {COLORS['primary']};
+            }}
         """)
-        self.url_label.setWordWrap(True)
-        self.url_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        url_layout.addWidget(self.url_label)
+        url_layout.addWidget(self.url_edit)
         
-        # Test button and preview
+        # Test buttons row
         test_layout = QHBoxLayout()
+        test_layout.setSpacing(10)
         
-        self.test_btn = QPushButton("🔗 " + (tr('test_connection') if tr('test_connection') != 'test_connection' else "Bağlantını Test Et"))
+        self.test_btn = QPushButton(f"🔗 {tr('test_connection')}")
         self.test_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLORS['bg_light']};
-                border: 1px solid {COLORS['border']};
+                background-color: {COLORS['success']};
+                border: none;
                 border-radius: 5px;
-                padding: 8px 16px;
-                color: {COLORS['text_secondary']};
+                padding: 10px 20px;
+                color: white;
+                font-weight: bold;
+                font-size: 13px;
             }}
             QPushButton:hover {{
-                background-color: {COLORS['primary']};
-                color: white;
+                background-color: #27ae60;
             }}
             QPushButton:disabled {{
-                background-color: {COLORS['bg_dark']};
+                background-color: {COLORS['bg_light']};
                 color: {COLORS['text_muted']};
             }}
         """)
         self.test_btn.clicked.connect(self._test_connection)
         test_layout.addWidget(self.test_btn)
         
-        self.test_status = QLabel()
-        self.test_status.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
-        test_layout.addWidget(self.test_status)
-        test_layout.addStretch()
+        # Test duration warning
+        test_warning = QLabel(f"ℹ️ {tr('rtsp_test_duration')}")
+        test_warning.setStyleSheet(f"""
+            background-color: {COLORS['primary']};
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 12px;
+        """)
+        test_layout.addWidget(test_warning)
         
+        test_layout.addStretch()
         url_layout.addLayout(test_layout)
         
-        # Preview frame
-        self.preview_label = QLabel()
-        self.preview_label.setFixedSize(320, 180)
+        # Test status label
+        self.test_status = QLabel("")
+        self.test_status.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 12px;")
+        url_layout.addWidget(self.test_status)
+        
+        scroll_layout.addWidget(url_group)
+        
+        # Example values box
+        examples_group = QGroupBox(f"📍 {tr('rtsp_example_values')}")
+        examples_group.setStyleSheet(f"""
+            QGroupBox {{
+                font-weight: bold;
+                border: 1px solid {COLORS['border']};
+                border-radius: 8px;
+                margin-top: 10px;
+                padding-top: 15px;
+                background-color: {COLORS['bg_light']};
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+                color: {COLORS['danger']};
+            }}
+        """)
+        examples_layout = QVBoxLayout(examples_group)
+        examples_layout.setContentsMargins(15, 20, 15, 15)
+        
+        examples_text = QLabel(
+            "• Hikvision: IP=192.168.1.100, Port=554, Endpoint=/Streaming/Channels/101\n"
+            "• Dahua: IP=192.168.1.200, Port=554, Endpoint=/cam/realmonitor?channel=1&subtype=0\n"
+            "• TP-Link: IP=192.168.1.50, Port=554, Endpoint=/stream1"
+        )
+        examples_text.setStyleSheet(f"""
+            color: {COLORS['text_secondary']};
+            font-size: 12px;
+            line-height: 1.6;
+        """)
+        examples_layout.addWidget(examples_text)
+        
+        scroll_layout.addWidget(examples_group)
+        
+        # Connection guide box
+        guide_group = QGroupBox(f"📖 {tr('rtsp_connection_guide')}")
+        guide_group.setStyleSheet(f"""
+            QGroupBox {{
+                font-weight: bold;
+                border: 1px solid {COLORS['border']};
+                border-radius: 8px;
+                margin-top: 10px;
+                padding-top: 15px;
+                background-color: {COLORS['bg_light']};
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+                color: {COLORS['primary']};
+            }}
+        """)
+        guide_layout = QVBoxLayout(guide_group)
+        guide_layout.setContentsMargins(15, 20, 15, 15)
+        
+        quick_start = QLabel(
+            f"<b>{tr('rtsp_quick_start')}:</b><br>"
+            f"{tr('rtsp_quick_start_1')}<br>"
+            f"{tr('rtsp_quick_start_2')}<br>"
+            f"{tr('rtsp_quick_start_3')}<br>"
+            f"{tr('rtsp_quick_start_4')}"
+        )
+        quick_start.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 12px;")
+        quick_start.setWordWrap(True)
+        guide_layout.addWidget(quick_start)
+        
+        important_notes = QLabel(
+            f"<br><b>⚠️ {tr('rtsp_important_notes')}:</b><br>"
+            f"• {tr('rtsp_note_network')}<br>"
+            f"• {tr('rtsp_note_port')}<br>"
+            f"• {tr('rtsp_note_path')}"
+        )
+        important_notes.setStyleSheet(f"color: {COLORS['warning']}; font-size: 12px;")
+        important_notes.setWordWrap(True)
+        guide_layout.addWidget(important_notes)
+        
+        scroll_layout.addWidget(guide_group)
+        
+        # Status message
+        self.status_label = QLabel(tr('rtsp_enter_url'))
+        self.status_label.setStyleSheet(f"""
+            color: {COLORS['primary']};
+            font-size: 13px;
+            padding: 10px;
+        """)
+        self.status_label.setWordWrap(True)
+        scroll_layout.addWidget(self.status_label)
+        
+        # Preview area
+        preview_group = QGroupBox()
+        preview_group.setStyleSheet(f"""
+            QGroupBox {{
+                border: 1px solid {COLORS['border']};
+                border-radius: 8px;
+                background-color: {COLORS['bg_dark']};
+            }}
+        """)
+        preview_layout = QVBoxLayout(preview_group)
+        preview_layout.setContentsMargins(20, 20, 20, 20)
+        
+        self.preview_label = QLabel(tr('rtsp_preview_placeholder'))
+        self.preview_label.setFixedSize(400, 225)
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setStyleSheet(f"""
-            background-color: {COLORS['bg_dark']};
-            border-radius: 5px;
+            background-color: {COLORS['bg_medium']};
+            border-radius: 8px;
             color: {COLORS['text_muted']};
+            font-size: 14px;
         """)
-        self.preview_label.setText("Test edildikdən sonra önizləmə görünəcək")
-        self.preview_label.hide()
-        url_layout.addWidget(self.preview_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        preview_layout.addWidget(self.preview_label, alignment=Qt.AlignmentFlag.AlignCenter)
         
-        layout.addWidget(url_group)
+        self.preview_hint = QLabel(tr('rtsp_preview_hint'))
+        self.preview_hint.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
+        self.preview_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        preview_layout.addWidget(self.preview_hint)
+        
+        scroll_layout.addWidget(preview_group)
+        
+        scroll_layout.addStretch()
+        scroll.setWidget(scroll_content)
+        layout.addWidget(scroll)
         
         # Validation error label
         self.error_label = QLabel()
@@ -451,13 +593,13 @@ class RTSPConfigDialog(QDialog):
         # Bottom buttons
         btn_layout = QHBoxLayout()
         
-        back_btn = QPushButton(tr('back') if tr('back') != 'back' else "← Geri")
+        back_btn = QPushButton(f"← {tr('back')}")
         back_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
                 border: 1px solid {COLORS['border']};
                 border-radius: 5px;
-                padding: 8px 20px;
+                padding: 10px 25px;
                 color: {COLORS['text_muted']};
             }}
             QPushButton:hover {{
@@ -469,15 +611,16 @@ class RTSPConfigDialog(QDialog):
         
         btn_layout.addStretch()
         
-        save_btn = QPushButton(tr('save') if tr('save') != 'save' else "💾 Saxla")
+        save_btn = QPushButton(f"💾 {tr('save')}")
         save_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {COLORS['success']};
                 color: white;
                 border: none;
                 border-radius: 5px;
-                padding: 8px 24px;
+                padding: 10px 30px;
                 font-weight: bold;
+                font-size: 14px;
             }}
             QPushButton:hover {{
                 background-color: #27ae60;
@@ -518,7 +661,7 @@ class RTSPConfigDialog(QDialog):
         else:
             masked_url = url
         
-        self.url_label.setText(masked_url)
+        self.url_edit.setText(masked_url)
         
         # Validation
         self._validate()
@@ -556,29 +699,22 @@ class RTSPConfigDialog(QDialog):
         if self._testing:
             return
         
-        if not self._validate():
+        # Get URL directly from url_edit (user may have pasted custom URL)
+        url = self.url_edit.text().strip()
+        
+        if not url:
+            QMessageBox.warning(self, "Xəta", "RTSP URL daxil edin")
             return
         
-        ip = self.ip_edit.text().strip()
-        if not ip:
-            QMessageBox.warning(self, "Xəta", "IP ünvanı daxil edin")
-            return
+        # If URL contains ****, replace with actual password
+        if "****" in url:
+            password = self.password_edit.text()
+            url = url.replace(":****@", f":{password}@")
         
         self._testing = True
         self.test_btn.setEnabled(False)
         self.test_status.setText("⏳ Test edilir...")
         self.test_status.setStyleSheet(f"color: {COLORS['warning']}; font-size: 12px;")
-        
-        # URL yarat
-        url = build_rtsp_url(
-            ip=ip,
-            username=self.username_edit.text() or "admin",
-            password=self.password_edit.text(),
-            port=self.port_spin.value(),
-            channel=self.channel_spin.value(),
-            stream=self.stream_combo.currentIndex(),
-            brand=self.brand_combo.currentText().lower()
-        )
         
         # Test connection (timeout 10 saniyə)
         try:

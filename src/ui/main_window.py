@@ -207,6 +207,11 @@ class MainWindow(QMainWindow):
         self._is_running = True
         self.camera_page.set_running_state(True)
         
+        # Update camera status label
+        if self._cameras_config:
+            camera_info = self._cameras_config[0].get('name', self._cameras_config[0].get('source', ''))
+            self.camera_page.set_camera_status(camera_info)
+        
         if self._telegram_notifier:
             self._telegram_notifier.send_startup_message()
         
@@ -225,6 +230,7 @@ class MainWindow(QMainWindow):
         
         self._is_running = False
         self.camera_page.set_running_state(False)
+        self.camera_page.set_camera_status("")  # Reset status
         
         logger.info("System stopped")
         
@@ -526,6 +532,7 @@ class MainWindow(QMainWindow):
         )
 
     def _quit_application(self):
+        # Stop system if running
         if self._is_running:
             reply = QMessageBox.question(
                 self, "Exit", "System is running. Exit?", 
@@ -535,10 +542,21 @@ class MainWindow(QMainWindow):
                 return
             self._stop_system()
         
-        # Logout before exiting for security
+        # Stop telegram notifier thread
+        if self._telegram_notifier:
+            self._telegram_notifier.stop()
+        
+        # Disconnect logout signal to prevent login dialog from appearing
+        try:
+            self._auth_manager.logout_requested.disconnect(self._on_logout_requested)
+        except:
+            pass
+        
+        # Logout before exiting for security (won't trigger login dialog now)
         if self._auth_manager.is_logged_in():
             self._auth_manager.logout()
         
+        # Force quit application
         QApplication.quit()
 
     def closeEvent(self, event):
