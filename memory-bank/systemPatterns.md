@@ -174,19 +174,43 @@ MainWindow
 └── ManageFacesDialog         # NEW
 ```
 
-### Core Components
+### Core Components (Modularized)
 ```
-AIWorker
-├── MotionDetector (gatekeeper)
-├── ObjectDetector (YOLO)
-├── FaceRecognizer (dlib/face_recognition)
-│   ├── load_from_database()  # NEW
-│   └── _known_encodings dict
-└── ReIDEngine (EfficientNet-B0)
-
-CameraManager
-└── CameraWorker (per camera)
-    └── cv2.VideoCapture
+src/core/
+├── detection.py           # Data classes
+│   ├── DetectionType      # Enum: PERSON, CAT, DOG, UNKNOWN
+│   ├── Detection          # Single detection result
+│   └── FrameResult        # Frame processing result
+│
+├── motion_detector.py     # CPU gatekeeper
+│   └── MotionDetector     # Background subtraction
+│
+├── object_detector.py     # YOLO wrapper
+│   └── ObjectDetector     # Person/Cat/Dog detection
+│
+├── face_recognizer.py     # dlib wrapper
+│   └── FaceRecognizer     # Face encoding & matching
+│
+├── ai_thread.py           # Main pipeline
+│   ├── AIWorker           # QThread for AI processing
+│   └── draw_detections()  # Bounding box drawing
+│
+├── gait_types.py          # Gait data classes
+│   ├── GaitBuffer         # Per-track silhouette buffer
+│   └── GaitMatch          # Gait match result
+│
+├── gait_buffer.py         # Buffer management
+│   └── GaitBufferManager  # Track-based frame collection
+│
+├── gait_engine.py         # Gait recognition
+│   └── GaitEngine         # Silhouette → Embedding → Match
+│
+├── reid_engine.py         # Re-ID
+│   └── ReIDEngine         # Body feature extraction
+│
+└── camera_thread.py       # Video capture
+    ├── CameraWorker       # Per-camera QThread
+    └── CameraManager      # Multi-camera coordinator
 ```
 
 ## Critical Implementation Paths
@@ -230,6 +254,43 @@ CameraManager
    - Compare against all known encodings
    - Return match if distance < tolerance
 
+### Gait Recognition Flow (NEW)
+```
+Person Detected → Face Recognition
+                        ↓
+              ┌─────────┴─────────┐
+              │ Success           │ Fail
+              ↓                   ↓
+    Passive Gait Enrollment    Re-ID Check
+    (extract silhouette,            ↓
+     add to buffer,           ┌─────┴─────┐
+     save when 30 frames)     │ Success   │ Fail
+                              ↓           ↓
+                           Label      Gait Recognition
+                                          ↓
+                                    ┌─────┴─────┐
+                                    │ Match     │ No Match
+                                    ↓           ↓
+                              "Name (Gait)"  "Unknown"
+```
+
+### Gait Recognition Components
+1. **GaitEngine** - Core recognition engine (singleton)
+   - Silhouette extraction (64x64 binary)
+   - Embedding extraction (256D via ResNet18)
+   - Cosine similarity matching
+   - Database operations
+
+2. **GaitBufferManager** - Per-track frame buffer
+   - Collects 30 silhouettes per track_id
+   - 5 second timeout for stale buffers
+   - Isolated buffers per person
+
+3. **Passive Enrollment** - Auto-learning
+   - When face recognized, extract silhouette
+   - Add to buffer, save embedding when full
+   - Max 10 embeddings per user (FIFO)
+
 ### Configuration Persistence
 1. Settings saved to `config/settings.json`
 2. Cameras saved to `config/cameras.json`
@@ -245,7 +306,7 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- app_users: Application login accounts (NEW)
+-- app_users: Application login accounts
 CREATE TABLE app_users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
@@ -265,7 +326,7 @@ CREATE TABLE face_encodings (
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- reid_embeddings: Future - clothing/body vectors
+-- reid_embeddings: clothing/body vectors
 CREATE TABLE reid_embeddings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
@@ -275,6 +336,17 @@ CREATE TABLE reid_embeddings (
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- gait_embeddings: Walking pattern vectors (NEW)
+CREATE TABLE gait_embeddings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    embedding BLOB NOT NULL,   -- pickle(256D numpy array)
+    confidence REAL DEFAULT 1.0,
+    captured_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+-- Index: idx_gait_user ON gait_embeddings(user_id)
+
 -- events: Detection history
 CREATE TABLE events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -282,6 +354,7 @@ CREATE TABLE events (
     object_label TEXT,
     confidence REAL,
     snapshot_path TEXT,
+    identification_method TEXT DEFAULT 'unknown',  -- 'face', 'reid', 'gait', 'unknown' (NEW)
     is_sent_telegram BOOLEAN DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

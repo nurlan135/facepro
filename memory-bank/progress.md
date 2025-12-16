@@ -14,8 +14,10 @@
 - [x] Object detection (YOLOv8n - person/cat/dog)
 - [x] Face recognition (dlib + face_recognition)
 - [x] Re-ID engine (EfficientNet-B0 feature extraction)
+- [x] **Gait Recognition** (ResNet18 silhouette-based) ✅ NEW
 - [x] Detection result drawing (bounding boxes + labels)
 - [x] **Database face loading on startup**
+- [x] **Database gait loading on startup** ✅ NEW
 
 ### Camera System
 - [x] Webcam capture
@@ -92,6 +94,7 @@
 ### High Priority
 - [ ] RTSP camera testing & validation
 - [x] Verify enrolled faces are recognized (Verified via script) ✅
+- [x] **Gait Recognition System** ✅ (NEW - 2025-12-16)
 
 ### Medium Priority
 - [x] Re-ID integration into live pipeline ✅
@@ -108,6 +111,19 @@
 - [ ] Auto-start with Windows
 - [x] **Installer package (PyInstaller/NSIS)** ✅
 - [ ] Update mechanism
+
+### Completed (2025-12-16) - Gait Recognition System
+- [x] **GaitEngine** - Silhouette-based gait recognition
+- [x] **GaitBufferManager** - 30-frame sequence management
+- [x] **Silhouette Extraction** - 64x64 binary images from person bbox
+- [x] **Embedding Extraction** - 256D vectors via ResNet18
+- [x] **Database Operations** - gait_embeddings table, max 10 per user
+- [x] **AIWorker Integration** - Gait fallback after Re-ID fails
+- [x] **Passive Enrollment** - Auto-learn gait when face recognized
+- [x] **Settings UI** - Enable/disable, threshold, sequence length
+- [x] **Event Logging** - identification_method column added
+- [x] **i18n** - Gait-related translations (EN, AZ, RU)
+- [x] **Property Tests** - 10+ hypothesis-based tests
 
 ### Completed (2025-12-16) - User Login System
 - [x] **SetupWizardDialog** - First admin account creation
@@ -194,59 +210,76 @@
 - Chose EfficientNet-B0 for Re-ID (balance of speed/accuracy)
 - Face encodings stored as pickle blobs (128-dim vectors)
 
-### File Structure Updates
+### File Structure Updates (2025-12-16 Refactoring)
 ```
-src/ui/
-├── face_enrollment.py  # NEW - Face enrollment & management
-├── main_window.py      # UPDATED - Menu integration
-├── settings_dialog.py
-├── styles.py
-└── video_widget.py
-
-src/core/
-├── ai_thread.py        # UPDATED - Load faces from DB
+src/core/  (MODULARIZED)
+├── __init__.py          # Exports all components
+├── detection.py         # NEW - DetectionType, Detection, FrameResult
+├── motion_detector.py   # NEW - MotionDetector class
+├── object_detector.py   # NEW - ObjectDetector (YOLO)
+├── face_recognizer.py   # NEW - FaceRecognizer (dlib)
+├── ai_thread.py         # REFACTORED - 962→360 lines
+├── gait_types.py        # NEW - GaitBuffer, GaitMatch
+├── gait_buffer.py       # NEW - GaitBufferManager
+├── gait_engine.py       # REFACTORED - 652→327 lines
 ├── camera_thread.py
 ├── cleaner.py
 └── reid_engine.py
+
+src/ui/
+├── face_enrollment.py
+├── main_window.py
+├── settings_dialog.py
+├── styles.py
+└── video_widget.py
 ```
 
 ---
 
 ## Session Summary (2025-12-16)
 
-**Focus**: User Login System Implementation
+**Focus**: Gait Recognition System Implementation
 **Status**: Complete ✅
 
-### Key Milestones
-1. SetupWizardDialog implemented ✅
-2. LoginDialog with dark theme ✅
-3. UserManagementDialog (CRUD) ✅
-4. ChangePasswordDialog ✅
-5. AuthManager with session handling ✅
-6. Role-based UI restrictions ✅
-7. Full i18n support (EN, AZ, RU) ✅
-8. Security features (lockout, timeout, hashing) ✅
+### Key Milestones - Gait Recognition
+1. ✅ Database schema (gait_embeddings table)
+2. ✅ GaitEngine class with lazy loading
+3. ✅ Silhouette extraction (64x64 binary)
+4. ✅ GaitBufferManager (30 frame sequences)
+5. ✅ Embedding extraction (256D ResNet18)
+6. ✅ Cosine similarity matching
+7. ✅ Database operations (save/load with max 10 per user)
+8. ✅ AIWorker integration (gait fallback)
+9. ✅ Passive enrollment (auto-learn when face recognized)
+10. ✅ Settings integration (enable/threshold/sequence_length)
+11. ✅ UI updates (blue bbox for gait, label format)
+12. ✅ Event logging (identification_method column)
+13. ✅ i18n translations (EN, AZ, RU)
+14. ✅ Property-based tests (10+ hypothesis tests)
 
-### Auth System Files
-- `src/utils/auth_manager.py` - Core authentication logic
-- `src/ui/setup_wizard.py` - First-time setup
-- `src/ui/login_dialog.py` - Login screen
-- `src/ui/user_management.py` - User CRUD (Admin)
-- `src/ui/change_password.py` - Password change
-- `src/utils/i18n.py` - Updated translations
+### Gait Recognition Files (Modularized)
+- `src/core/gait_types.py` - GaitBuffer, GaitMatch dataclasses
+- `src/core/gait_buffer.py` - GaitBufferManager class
+- `src/core/gait_engine.py` - GaitEngine core (327 lines)
+- `tests/test_gait_engine.py` - Property-based tests
+- `.kiro/specs/gait-recognition/tasks.md` - Implementation spec
 
-### Role Permissions
-| Feature | Admin | Operator |
-|---------|-------|----------|
-| Camera Monitoring | ✅ | ✅ |
-| Event Logs | ✅ | ✅ |
-| Change Password | ✅ | ✅ |
-| Settings | ✅ | ❌ |
-| User Management | ✅ | ❌ |
-| Face Enrollment | ✅ | ❌ |
+### Gait Recognition Pipeline
+```
+Person Detected → Face Recognition → (fail) → Re-ID → (fail) → Gait Recognition
+                        ↓ (success)
+                  Passive Gait Enrollment (auto-learn body pattern)
+```
 
-### Ready for Deployment
-The project now has complete user authentication. Ready for:
-- Final testing on fresh machine
-- User documentation
-- Production deployment
+### Previous Session - User Login System ✅
+- SetupWizardDialog, LoginDialog, UserManagementDialog
+- AuthManager, Role-Based Access Control
+- Session timeout, Account lockout
+
+### Ready for Production
+The project now has complete:
+- Face Recognition
+- Person Re-ID
+- Gait Recognition (NEW)
+- User Authentication
+- Multi-language support (EN, AZ, RU)

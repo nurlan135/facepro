@@ -36,7 +36,7 @@ from src.utils.logger import get_logger
 from src.utils.i18n import tr, get_translator
 from src.utils.helpers import (
     load_config, load_cameras, save_snapshot, 
-    get_timestamp, get_db_path
+    get_timestamp, get_db_path, save_event
 )
 from src.ui.styles import DARK_THEME, COLORS
 from src.ui.settings_dialog import SettingsDialog
@@ -291,6 +291,17 @@ class MainWindow(QMainWindow):
         
         # Update log count
         self.logs_page.update_count(self.logs_page.logs_list.count())
+        
+        # Save event to database
+        event_type = detection.type.value if hasattr(detection.type, 'value') else str(detection.type)
+        identification_method = getattr(detection, 'identification_method', 'unknown') or 'unknown'
+        save_event(
+            event_type=event_type,
+            object_label=detection.label,
+            confidence=detection.confidence,
+            snapshot_path=None,  # Snapshot saved separately if needed
+            identification_method=identification_method
+        )
         
         self._update_stats()
 

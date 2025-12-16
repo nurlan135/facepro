@@ -55,10 +55,17 @@ def init_database():
             object_label TEXT,
             confidence REAL,
             snapshot_path TEXT,
+            identification_method TEXT DEFAULT 'unknown',
             is_sent_telegram BOOLEAN DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    
+    # Migration: Add identification_method column if it doesn't exist (for existing databases)
+    try:
+        cursor.execute("ALTER TABLE events ADD COLUMN identification_method TEXT DEFAULT 'unknown'")
+    except:
+        pass  # Column already exists
     
     # 5. App Users (Application login accounts - separate from face recognition users)
     cursor.execute('''

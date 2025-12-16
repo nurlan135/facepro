@@ -197,7 +197,22 @@ TRANSLATIONS = {
         "user_err_username_short": "Username must be at least 3 characters",
         "user_err_password_short": "Password must be at least 6 characters",
         "user_delete_cannot_undo": "This action cannot be undone.",
-        "user_error_title": "Error"
+        "user_error_title": "Error",
+        
+        # Gait Recognition
+        "gait_recognition": "Gait Recognition",
+        "gait_enabled": "Enable Gait Recognition",
+        "gait_threshold": "Gait Confidence Threshold",
+        "gait_sequence_length": "Gait Sequence Length",
+        "gait_analyzing": "Analyzing gait...",
+        "gait_identified": "Gait",
+        "gait_settings": "Gait Recognition Settings",
+        "gait_threshold_desc": "Minimum confidence for gait identification (0.50 - 0.95)",
+        "gait_sequence_desc": "Number of frames for gait analysis (20 - 60)",
+        "identification_method_face": "Face",
+        "identification_method_reid": "Re-ID",
+        "identification_method_gait": "Gait",
+        "identification_method_unknown": "Unknown"
     },
     
     "az": {
@@ -392,7 +407,22 @@ TRANSLATIONS = {
         "user_err_username_short": "İstifadəçi adı ən azı 3 simvol olmalıdır",
         "user_err_password_short": "Şifrə ən azı 6 simvol olmalıdır",
         "user_delete_cannot_undo": "Bu əməliyyat geri qaytarıla bilməz.",
-        "user_error_title": "Səhv"
+        "user_error_title": "Səhv",
+        
+        # Gait Recognition
+        "gait_recognition": "Yeriş Tanıma",
+        "gait_enabled": "Yeriş Tanımanı Aktivləşdir",
+        "gait_threshold": "Yeriş Dəqiqlik Həddi",
+        "gait_sequence_length": "Yeriş Seqans Uzunluğu",
+        "gait_analyzing": "Yeriş analiz edilir...",
+        "gait_identified": "Yeriş",
+        "gait_settings": "Yeriş Tanıma Ayarları",
+        "gait_threshold_desc": "Yeriş tanıma üçün minimum dəqiqlik (0.50 - 0.95)",
+        "gait_sequence_desc": "Yeriş analizi üçün kadr sayı (20 - 60)",
+        "identification_method_face": "Üz",
+        "identification_method_reid": "Re-ID",
+        "identification_method_gait": "Yeriş",
+        "identification_method_unknown": "Naməlum"
     },
     
     "ru": {
@@ -587,7 +617,22 @@ TRANSLATIONS = {
         "user_err_username_short": "Имя должно быть не менее 3 символов",
         "user_err_password_short": "Пароль должен быть не менее 6 символов",
         "user_delete_cannot_undo": "Это действие нельзя отменить.",
-        "user_error_title": "Ошибка"
+        "user_error_title": "Ошибка",
+        
+        # Gait Recognition
+        "gait_recognition": "Распознавание походки",
+        "gait_enabled": "Включить распознавание походки",
+        "gait_threshold": "Порог точности походки",
+        "gait_sequence_length": "Длина последовательности походки",
+        "gait_analyzing": "Анализ походки...",
+        "gait_identified": "Походка",
+        "gait_settings": "Настройки распознавания походки",
+        "gait_threshold_desc": "Минимальная точность для идентификации (0.50 - 0.95)",
+        "gait_sequence_desc": "Количество кадров для анализа (20 - 60)",
+        "identification_method_face": "Лицо",
+        "identification_method_reid": "Re-ID",
+        "identification_method_gait": "Походка",
+        "identification_method_unknown": "Неизвестно"
     }
 }
 

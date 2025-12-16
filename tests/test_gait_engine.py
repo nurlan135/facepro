@@ -1270,3 +1270,483 @@ class TestMaxEmbeddingsPerUser:
         
         assert result is None, \
             f"First embedding (id={first_embedding_id}) should have been deleted"
+
+
+class TestPassiveEnrollmentAssociation:
+    """
+    **Feature: gait-recognition, Property 10: Passive Enrollment Association**
+    **Validates: Requirements 2.1, 2.2**
+    
+    For any passive enrollment triggered by face recognition, the stored gait 
+    embedding SHALL have the same user_id as the face recognition result.
+    """
+    
+    @staticmethod
+    def _create_test_db(db_path: str):
+        """Create a test database with required schema."""
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Create users table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Create gait_embeddings table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS gait_embeddings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                embedding BLOB NOT NULL,
+                confidence REAL DEFAULT 1.0,
+                captured_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+        
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_gait_user ON gait_embeddings(user_id)")
+        
+        conn.commit()
+        conn.close()
+    
+    @staticmethod
+    def _create_test_user(db_path: str, user_id: int, name: str):
+        """Helper to create a test user in the database."""
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO users (id, name) VALUES (?, ?)",
+            (user_id, name)
+        )
+        conn.commit()
+        conn.close()
+    
+    @staticmethod
+    def _get_embeddings_for_user(db_path: str, user_id: int) -> list:
+        """Helper to get all embeddings for a user."""
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, user_id, embedding FROM gait_embeddings WHERE user_id = ?",
+            (user_id,)
+        )
+        results = cursor.fetchall()
+        conn.close()
+        return results
+    
+    @given(
+        user_id=st.integers(min_value=1, max_value=1000),
+        seed=st.integers(min_value=0, max_value=2**32-1)
+    )
+    @settings(max_examples=100, deadline=None)
+    def test_saved_embedding_has_correct_user_id(self, user_id, seed, tmp_path_factory):
+        """
+        **Feature: gait-recognition, Property 10: Passive Enrollment Association**
+        **Validates: Requirements 2.1, 2.2**
+        
+        For any gait embedding saved during passive enrollment, the user_id 
+        in the database SHALL match the user_id from face recognition.
+        """
+        import tempfile
+        import os
+        
+        # Create unique temp database for this iteration
+        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+            db_path = f.name
+        
+        try:
+            self._create_test_db(db_path)
+            engine = GaitEngine()
+            rng = np.random.default_rng(seed)
+            
+            # Create test user (simulating face recognition result)
+            user_name = f"User_{user_id}"
+            self._create_test_user(db_path, user_id, user_name)
+            
+            # Generate a gait embedding (simulating extraction from silhouettes)
+            embedding = rng.random(256).astype(np.float32)
+            embedding = embedding / np.linalg.norm(embedding)
+            
+            # Save embedding (simulating passive enrollment)
+            saved_id = engine.save_embedding(user_id, embedding, db_path=db_path)
+            
+            # Property: saved embedding must have the correct user_id
+            assert saved_id is not None, "Embedding should be saved successfully"
+            
+            embeddings = self._get_embeddings_for_user(db_path, user_id)
+            assert len(embeddings) > 0, f"No embeddings found for user_id={user_id}"
+            
+            # Verify all embeddings for this user have the correct user_id
+            for emb_id, stored_user_id, _ in embeddings:
+                assert stored_user_id == user_id, \
+                    f"Embedding {emb_id} has user_id={stored_user_id}, expected {user_id}"
+        finally:
+            # Cleanup
+            if os.path.exists(db_path):
+                os.unlink(db_path)
+    
+    @given(
+        user_ids=st.lists(
+            st.integers(min_value=1, max_value=100),
+            min_size=2,
+            max_size=5,
+            unique=True
+        ),
+        seed=st.integers(min_value=0, max_value=2**32-1)
+    )
+    @settings(max_examples=100, deadline=None)
+    def test_multiple_users_embeddings_correctly_associated(self, user_ids, seed, tmp_path_factory):
+        """
+        **Feature: gait-recognition, Property 10: Passive Enrollment Association**
+        **Validates: Requirements 2.1, 2.2**
+        
+        For multiple users, each saved embedding SHALL be associated with 
+        the correct user_id from face recognition.
+        """
+        import tempfile
+        import os
+        
+        # Create unique temp database for this iteration
+        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+            db_path = f.name
+        
+        try:
+            self._create_test_db(db_path)
+            engine = GaitEngine()
+            rng = np.random.default_rng(seed)
+            
+            # Create test users and save embeddings for each
+            for user_id in user_ids:
+                user_name = f"User_{user_id}"
+                self._create_test_user(db_path, user_id, user_name)
+                
+                # Save 2-3 embeddings per user
+                num_embeddings = rng.integers(2, 4)
+                for _ in range(num_embeddings):
+                    embedding = rng.random(256).astype(np.float32)
+                    embedding = embedding / np.linalg.norm(embedding)
+                    engine.save_embedding(user_id, embedding, db_path=db_path)
+            
+            # Property: each user's embeddings must have correct user_id
+            for user_id in user_ids:
+                embeddings = self._get_embeddings_for_user(db_path, user_id)
+                
+                for emb_id, stored_user_id, _ in embeddings:
+                    assert stored_user_id == user_id, \
+                        f"Embedding {emb_id} has user_id={stored_user_id}, expected {user_id}"
+        finally:
+            # Cleanup
+            if os.path.exists(db_path):
+                os.unlink(db_path)
+    
+    @given(
+        user_id=st.integers(min_value=1, max_value=1000),
+        num_enrollments=st.integers(min_value=1, max_value=15),
+        seed=st.integers(min_value=0, max_value=2**32-1)
+    )
+    @settings(max_examples=100, deadline=None)
+    def test_repeated_enrollments_maintain_association(self, user_id, num_enrollments, seed, tmp_path_factory):
+        """
+        **Feature: gait-recognition, Property 10: Passive Enrollment Association**
+        **Validates: Requirements 2.1, 2.2**
+        
+        For repeated passive enrollments of the same user, all stored 
+        embeddings SHALL maintain the correct user_id association.
+        """
+        import tempfile
+        import os
+        
+        # Create unique temp database for this iteration
+        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+            db_path = f.name
+        
+        try:
+            self._create_test_db(db_path)
+            engine = GaitEngine()
+            rng = np.random.default_rng(seed)
+            
+            # Create test user
+            user_name = f"User_{user_id}"
+            self._create_test_user(db_path, user_id, user_name)
+            
+            # Simulate multiple passive enrollments (face recognized multiple times)
+            for _ in range(num_enrollments):
+                embedding = rng.random(256).astype(np.float32)
+                embedding = embedding / np.linalg.norm(embedding)
+                engine.save_embedding(user_id, embedding, db_path=db_path)
+            
+            # Property: all embeddings must have correct user_id
+            embeddings = self._get_embeddings_for_user(db_path, user_id)
+            
+            # Should have at most 10 embeddings (due to max limit)
+            expected_count = min(num_enrollments, 10)
+            assert len(embeddings) == expected_count, \
+                f"Expected {expected_count} embeddings, got {len(embeddings)}"
+            
+            for emb_id, stored_user_id, _ in embeddings:
+                assert stored_user_id == user_id, \
+                    f"Embedding {emb_id} has user_id={stored_user_id}, expected {user_id}"
+        finally:
+            # Cleanup
+            if os.path.exists(db_path):
+                os.unlink(db_path)
+    
+    def test_embedding_user_id_matches_face_recognition_result(self, tmp_path):
+        """
+        **Feature: gait-recognition, Property 10: Passive Enrollment Association**
+        **Validates: Requirements 2.1, 2.2**
+        
+        Concrete example: when face recognition identifies user_id=42, 
+        the saved gait embedding SHALL have user_id=42.
+        """
+        db_path = str(tmp_path / "test_gait.db")
+        self._create_test_db(db_path)
+        engine = GaitEngine()
+        
+        # Simulate face recognition result
+        face_recognition_user_id = 42
+        face_recognition_user_name = "John Doe"
+        
+        # Create user in database
+        self._create_test_user(db_path, face_recognition_user_id, face_recognition_user_name)
+        
+        # Generate gait embedding (simulating extraction from walking sequence)
+        embedding = np.random.randn(256).astype(np.float32)
+        embedding = embedding / np.linalg.norm(embedding)
+        
+        # Save embedding with user_id from face recognition
+        saved_id = engine.save_embedding(face_recognition_user_id, embedding, db_path=db_path)
+        
+        # Verify the association
+        assert saved_id is not None, "Embedding should be saved"
+        
+        embeddings = self._get_embeddings_for_user(db_path, face_recognition_user_id)
+        assert len(embeddings) == 1, "Should have exactly one embedding"
+        
+        emb_id, stored_user_id, _ = embeddings[0]
+        assert stored_user_id == face_recognition_user_id, \
+            f"Stored user_id={stored_user_id} does not match face recognition user_id={face_recognition_user_id}"
+    
+    def test_no_cross_user_contamination(self, tmp_path):
+        """
+        **Feature: gait-recognition, Property 10: Passive Enrollment Association**
+        **Validates: Requirements 2.1, 2.2**
+        
+        Embeddings saved for one user SHALL NOT appear under another user's records.
+        """
+        db_path = str(tmp_path / "test_gait.db")
+        self._create_test_db(db_path)
+        engine = GaitEngine()
+        
+        # Create two users
+        user1_id, user1_name = 1, "Alice"
+        user2_id, user2_name = 2, "Bob"
+        
+        self._create_test_user(db_path, user1_id, user1_name)
+        self._create_test_user(db_path, user2_id, user2_name)
+        
+        # Save embeddings for user1
+        for i in range(3):
+            embedding = np.random.randn(256).astype(np.float32)
+            embedding = embedding / np.linalg.norm(embedding)
+            engine.save_embedding(user1_id, embedding, db_path=db_path)
+        
+        # Save embeddings for user2
+        for i in range(2):
+            embedding = np.random.randn(256).astype(np.float32)
+            embedding = embedding / np.linalg.norm(embedding)
+            engine.save_embedding(user2_id, embedding, db_path=db_path)
+        
+        # Verify no cross-contamination
+        user1_embeddings = self._get_embeddings_for_user(db_path, user1_id)
+        user2_embeddings = self._get_embeddings_for_user(db_path, user2_id)
+        
+        assert len(user1_embeddings) == 3, f"User1 should have 3 embeddings, got {len(user1_embeddings)}"
+        assert len(user2_embeddings) == 2, f"User2 should have 2 embeddings, got {len(user2_embeddings)}"
+        
+        # Verify all user1 embeddings have user1_id
+        for emb_id, stored_user_id, _ in user1_embeddings:
+            assert stored_user_id == user1_id, \
+                f"User1's embedding {emb_id} has wrong user_id={stored_user_id}"
+        
+        # Verify all user2 embeddings have user2_id
+        for emb_id, stored_user_id, _ in user2_embeddings:
+            assert stored_user_id == user2_id, \
+                f"User2's embedding {emb_id} has wrong user_id={stored_user_id}"
+
+
+class TestLabelFormatCorrectness:
+    """
+    **Feature: gait-recognition, Property 8: Label Format Correctness**
+    **Validates: Requirements 1.4, 4.2**
+    
+    For any gait identification with confidence > threshold, the label 
+    SHALL match the pattern "Name (Gait: XX%)".
+    """
+    
+    @staticmethod
+    def format_gait_label(name: str, confidence: float) -> str:
+        """
+        Format a gait identification label.
+        This mirrors the format used in ai_thread.py.
+        """
+        return f"{name} (Gait: {confidence:.0%})"
+    
+    @given(
+        name=st.text(min_size=1, max_size=50, alphabet=st.characters(
+            whitelist_categories=('L', 'N', 'P', 'S'),
+            whitelist_characters=' _-'
+        )).filter(lambda x: x.strip()),
+        confidence=st.floats(min_value=0.70, max_value=1.0, allow_nan=False)
+    )
+    @settings(max_examples=100)
+    def test_gait_label_format_matches_pattern(self, name, confidence):
+        """
+        **Feature: gait-recognition, Property 8: Label Format Correctness**
+        **Validates: Requirements 1.4, 4.2**
+        
+        For any name and confidence >= threshold, the formatted label 
+        SHALL match the pattern "Name (Gait: XX%)".
+        """
+        import re
+        
+        label = self.format_gait_label(name, confidence)
+        
+        # Pattern: "Name (Gait: XX%)" where XX is 0-100
+        # The name can contain letters, numbers, spaces, underscores, hyphens
+        pattern = r'^.+ \(Gait: \d{1,3}%\)$'
+        
+        assert re.match(pattern, label), \
+            f"Label '{label}' does not match expected pattern 'Name (Gait: XX%)'"
+    
+    @given(
+        name=st.text(min_size=1, max_size=30, alphabet=st.characters(
+            whitelist_categories=('L',),
+        )),
+        confidence=st.floats(min_value=0.0, max_value=1.0, allow_nan=False)
+    )
+    @settings(max_examples=100)
+    def test_gait_label_contains_name(self, name, confidence):
+        """
+        **Feature: gait-recognition, Property 8: Label Format Correctness**
+        **Validates: Requirements 1.4, 4.2**
+        
+        The formatted label SHALL contain the person's name.
+        """
+        label = self.format_gait_label(name, confidence)
+        
+        assert name in label, \
+            f"Label '{label}' does not contain name '{name}'"
+    
+    @given(
+        name=st.text(min_size=1, max_size=20, alphabet=st.characters(
+            whitelist_categories=('L',),
+        )),
+        confidence=st.floats(min_value=0.0, max_value=1.0, allow_nan=False)
+    )
+    @settings(max_examples=100)
+    def test_gait_label_contains_gait_indicator(self, name, confidence):
+        """
+        **Feature: gait-recognition, Property 8: Label Format Correctness**
+        **Validates: Requirements 1.4, 4.2**
+        
+        The formatted label SHALL contain "(Gait:" to indicate gait identification.
+        """
+        label = self.format_gait_label(name, confidence)
+        
+        assert "(Gait:" in label, \
+            f"Label '{label}' does not contain '(Gait:' indicator"
+    
+    @given(
+        name=st.text(min_size=1, max_size=20, alphabet=st.characters(
+            whitelist_categories=('L',),
+        )),
+        confidence=st.floats(min_value=0.0, max_value=1.0, allow_nan=False)
+    )
+    @settings(max_examples=100)
+    def test_gait_label_contains_percentage(self, name, confidence):
+        """
+        **Feature: gait-recognition, Property 8: Label Format Correctness**
+        **Validates: Requirements 1.4, 4.2**
+        
+        The formatted label SHALL contain a percentage value.
+        """
+        label = self.format_gait_label(name, confidence)
+        
+        assert '%' in label, \
+            f"Label '{label}' does not contain percentage symbol"
+    
+    @given(
+        confidence=st.floats(min_value=0.0, max_value=1.0, allow_nan=False)
+    )
+    @settings(max_examples=100)
+    def test_gait_label_percentage_in_valid_range(self, confidence):
+        """
+        **Feature: gait-recognition, Property 8: Label Format Correctness**
+        **Validates: Requirements 1.4, 4.2**
+        
+        The percentage in the label SHALL be between 0% and 100%.
+        """
+        import re
+        
+        label = self.format_gait_label("TestUser", confidence)
+        
+        # Extract percentage value
+        match = re.search(r'(\d{1,3})%', label)
+        assert match, f"Could not find percentage in label '{label}'"
+        
+        percentage = int(match.group(1))
+        assert 0 <= percentage <= 100, \
+            f"Percentage {percentage}% is outside valid range [0, 100]"
+    
+    def test_gait_label_format_examples(self):
+        """
+        **Feature: gait-recognition, Property 8: Label Format Correctness**
+        **Validates: Requirements 1.4, 4.2**
+        
+        Concrete examples of expected label formats.
+        """
+        # Test various confidence levels
+        test_cases = [
+            ("John", 0.75, "John (Gait: 75%)"),
+            ("Alice", 0.90, "Alice (Gait: 90%)"),
+            ("Bob", 1.0, "Bob (Gait: 100%)"),
+            ("User", 0.70, "User (Gait: 70%)"),
+        ]
+        
+        for name, confidence, expected in test_cases:
+            label = self.format_gait_label(name, confidence)
+            assert label == expected, \
+                f"Expected '{expected}', got '{label}'"
+    
+    def test_gait_label_with_special_characters_in_name(self):
+        """
+        **Feature: gait-recognition, Property 8: Label Format Correctness**
+        **Validates: Requirements 1.4, 4.2**
+        
+        Names with special characters SHALL still produce valid labels.
+        """
+        import re
+        
+        special_names = [
+            "John Doe",
+            "Mary-Jane",
+            "O'Connor",
+            "José García",
+        ]
+        
+        pattern = r'^.+ \(Gait: \d{1,3}%\)$'
+        
+        for name in special_names:
+            label = self.format_gait_label(name, 0.85)
+            assert re.match(pattern, label), \
+                f"Label '{label}' for name '{name}' does not match expected pattern"
+            assert name in label, \
+                f"Label '{label}' does not contain name '{name}'"

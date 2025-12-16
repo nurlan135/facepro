@@ -198,82 +198,141 @@
     - **Property 6: Maximum Embeddings Per User**
     - **Validates: Requirements 2.3, 2.4**
 
-- [ ] 8. Checkpoint - Ensure all tests pass
+- [x] 8. Checkpoint - Ensure all tests pass
+
+
+
+
+
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. AIWorker integration
-  - [ ] 9.1 Add GaitEngine and GaitBufferManager to AIWorker
+- [x] 9. AIWorker integration
+
+
+
+  - [x] 9.1 Add GaitEngine and GaitBufferManager to AIWorker
+
+
     - Import and initialize in __init__
     - Load embeddings in run() method
     - _Requirements: 3.1_
   
-  - [ ] 9.2 Implement _try_gait_recognition method
+
+
+  - [x] 9.2 Implement _try_gait_recognition method
     - Extract silhouette from frame/bbox
     - Add to buffer for track_id
     - If buffer full (30), extract embedding and compare
     - Return GaitMatch or None
     - _Requirements: 1.1, 3.1_
   
-  - [ ] 9.3 Implement passive gait enrollment
+  - [x] 9.3 Implement passive gait enrollment
     - When face recognition succeeds, extract silhouette
     - Add to buffer, when full save embedding with user_id
     - _Requirements: 2.1, 2.2_
   
-  - [ ] 9.4 Update _process_frame for gait fallback
+  - [x] 9.4 Update _process_frame for gait fallback
+
     - After Re-ID fails, try gait recognition
     - Set detection.label = "Name (Gait: XX%)"
     - _Requirements: 1.1, 1.4, 3.1_
   
-  - [ ] 9.5 Write property test for passive enrollment association
+  - [x] 9.5 Write property test for passive enrollment association
+
+
+
     - **Property 10: Passive Enrollment Association**
     - **Validates: Requirements 2.1, 2.2**
 
-- [ ] 10. UI updates
-  - [ ] 10.1 Update draw_detections for gait color
+- [x] 10. UI updates
+
+
+
+
+
+  - [x] 10.1 Update draw_detections for gait color
+
+
     - Blue bounding box for gait-identified persons
     - Label format: "Name (Gait: XX%)"
     - _Requirements: 4.1, 4.2_
+
   
-  - [ ] 10.2 Write property test for label format
+  - [x] 10.2 Write property test for label format
+
     - **Property 8: Label Format Correctness**
     - **Validates: Requirements 1.4, 4.2**
   
-  - [ ] 10.3 Update Detection dataclass
+  - [x] 10.3 Update Detection dataclass
+
+
     - Add identification_method field: 'face', 'reid', 'gait'
     - _Requirements: 4.4_
 
-- [ ] 11. Settings integration
-  - [ ] 11.1 Add gait settings to settings.json schema
+- [x] 11. Settings integration
+
+
+
+
+
+  - [x] 11.1 Add gait settings to settings.json schema
+
+
     - gait_enabled: bool (default: true)
     - gait_threshold: float (default: 0.70)
     - gait_sequence_length: int (default: 30)
     - _Requirements: 5.1, 5.2, 5.3_
   
-  - [ ] 11.2 Update SettingsDialog for gait configuration
+
+  - [x] 11.2 Update SettingsDialog for gait configuration
+
     - Enable/disable checkbox
     - Threshold slider (0.5 - 0.95)
     - Sequence length spinner (20-60)
     - _Requirements: 5.1, 5.2, 5.3_
   
-  - [ ] 11.3 Load gait settings on startup
+
+  - [x] 11.3 Load gait settings on startup
+
     - Read from settings.json in GaitEngine init
     - _Requirements: 5.4_
 
-- [ ] 12. Event logging
-  - [ ] 12.1 Update events table for identification method
+- [x] 12. Event logging
+
+
+
+
+
+  - [x] 12.1 Update events table for identification method
+
+
     - Add identification_method column if not exists
     - Values: 'face', 'reid', 'gait', 'unknown'
     - _Requirements: 4.4_
   
-  - [ ] 12.2 Update event creation to include method
+  - [x] 12.2 Update event creation to include method
+
+
     - Set identification_method when saving event
     - _Requirements: 4.4_
 
-- [ ] 13. i18n translations
-  - [ ] 13.1 Add gait-related translation keys
+- [x] 13. i18n translations
+
+
+
+
+
+
+  - [x] 13.1 Add gait-related translation keys
+
     - gait_recognition, gait_enabled, gait_threshold, etc.
     - Languages: en, az, ru
     - _Requirements: 4.2, 4.3_
 
-- [ ] 14. Final Checkpoint - Ensure all tests pass
+- [x] 14. Final Checkpoint - Ensure all tests pass
+
+
+
+
+
   - Ensure all tests pass, ask the user if questions arise.

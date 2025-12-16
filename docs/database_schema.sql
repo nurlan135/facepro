@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS events (
     object_label TEXT,     -- 'Ali', 'Unknown', 'Cat'
     confidence REAL,
     snapshot_path TEXT,    -- Path to .jpg in /data/logs/
+    identification_method TEXT DEFAULT 'unknown',  -- 'face', 'reid', 'gait', 'unknown'
     is_sent_telegram BOOLEAN DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

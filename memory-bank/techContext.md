@@ -9,7 +9,8 @@
 | Computer Vision | OpenCV | 4.12.0 | Video capture, image processing |
 | Object Detection | YOLOv8 (Ultralytics) | 8.3.x | Person/Cat/Dog detection |
 | Face Recognition | face_recognition + dlib | 1.3.0 / 20.0.0 | Face encoding & matching |
-| Deep Learning | PyTorch | 2.9.1 | Re-ID model inference |
+| Deep Learning | PyTorch | 2.9.1 | Re-ID & Gait model inference |
+| Gait Recognition | ResNet18 (adapted) | - | Silhouette-based gait features |
 | Database | SQLite | (built-in) | Local data storage |
 
 ### Supporting Libraries
@@ -21,7 +22,8 @@
 | requests | HTTP requests (Telegram) |
 | psutil | System monitoring |
 | schedule | Background task scheduling |
-| pickle | Serializing face encodings |
+| pickle | Serializing face/gait encodings |
+| hypothesis | Property-based testing |
 
 ## Development Setup
 
@@ -73,8 +75,16 @@ FacePro/
 ├── models/              # AI model files (downloaded at runtime)
 │
 └── src/
-    ├── core/
-    │   ├── ai_thread.py      # AI processing pipeline
+    ├── core/                 # MODULARIZED (2025-12-16)
+    │   ├── __init__.py       # Exports all components
+    │   ├── detection.py      # DetectionType, Detection, FrameResult
+    │   ├── motion_detector.py # MotionDetector class
+    │   ├── object_detector.py # ObjectDetector (YOLO)
+    │   ├── face_recognizer.py # FaceRecognizer (dlib)
+    │   ├── ai_thread.py      # AIWorker, draw_detections (360 lines)
+    │   ├── gait_types.py     # GaitBuffer, GaitMatch
+    │   ├── gait_buffer.py    # GaitBufferManager
+    │   ├── gait_engine.py    # GaitEngine (327 lines)
     │   ├── camera_thread.py  # Video capture
     │   ├── cleaner.py        # FIFO storage manager
     │   └── reid_engine.py    # Person Re-ID

@@ -490,9 +490,16 @@ def _ensure_db_initialized(db_path: str):
                 object_label TEXT,
                 confidence REAL,
                 snapshot_path TEXT,
+                identification_method TEXT DEFAULT 'unknown',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        
+        # Migration: Add identification_method column if it doesn't exist (for existing databases)
+        try:
+            cursor.execute("ALTER TABLE events ADD COLUMN identification_method TEXT DEFAULT 'unknown'")
+        except:
+            pass  # Column already exists
         
         # Re-ID Embeddings table
         cursor.execute("""
@@ -556,3 +563,44 @@ def get_faces_dir() -> str:
     except:
         pass
     return faces_dir
+
+
+def save_event(
+    event_type: str,
+    object_label: str = None,
+    confidence: float = None,
+    snapshot_path: str = None,
+    identification_method: str = 'unknown'
+) -> bool:
+    """
+    Event-i database-ə saxla.
+    
+    Args:
+        event_type: Event növü ('PERSON', 'INTRUSION', 'OFFLINE_ALERT')
+        object_label: Aşkarlanan obyektin adı ('Ali', 'Unknown', etc.)
+        confidence: Tanıma etibar dərəcəsi (0.0 - 1.0)
+        snapshot_path: Snapshot şəklinin yolu
+        identification_method: Tanıma metodu ('face', 'reid', 'gait', 'unknown')
+    
+    Returns:
+        bool: Uğurlu olduqda True
+    """
+    import sqlite3
+    
+    try:
+        db_path = get_db_path()
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO events (event_type, object_label, confidence, snapshot_path, identification_method)
+            VALUES (?, ?, ?, ?, ?)
+        """, (event_type, object_label, confidence, snapshot_path, identification_method))
+        
+        conn.commit()
+        conn.close()
+        logger.debug(f"Event saved: {event_type} - {object_label} ({identification_method})")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save event: {e}")
+        return False

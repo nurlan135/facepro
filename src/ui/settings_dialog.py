@@ -427,6 +427,30 @@ class SettingsDialog(QDialog):
         reid_layout.addRow("Confidence:", self.reid_confidence_spin)
         
         layout.addWidget(reid_group)
+        
+        # Gait Recognition
+        gait_group = QGroupBox(tr('gait_recognition'))
+        gait_layout = QFormLayout(gait_group)
+        
+        self.gait_enabled_check = QCheckBox(tr('gait_enabled'))
+        self.gait_enabled_check.setToolTip(tr('gait_settings'))
+        gait_layout.addRow("", self.gait_enabled_check)
+        
+        self.gait_threshold_spin = QDoubleSpinBox()
+        self.gait_threshold_spin.setRange(0.50, 0.95)
+        self.gait_threshold_spin.setSingleStep(0.05)
+        self.gait_threshold_spin.setValue(0.70)
+        self.gait_threshold_spin.setToolTip(tr('gait_threshold_desc'))
+        gait_layout.addRow(f"{tr('gait_threshold')}:", self.gait_threshold_spin)
+        
+        self.gait_sequence_spin = QSpinBox()
+        self.gait_sequence_spin.setRange(20, 60)
+        self.gait_sequence_spin.setValue(30)
+        self.gait_sequence_spin.setSuffix(" frames")
+        self.gait_sequence_spin.setToolTip(tr('gait_sequence_desc'))
+        gait_layout.addRow(f"{tr('gait_sequence_length')}:", self.gait_sequence_spin)
+        
+        layout.addWidget(gait_group)
         layout.addStretch()
         
         return widget
@@ -551,6 +575,12 @@ class SettingsDialog(QDialog):
         self.face_confidence_spin.setValue(ai_config.get('face_confidence_threshold', 0.6))
         self.reid_confidence_spin.setValue(ai_config.get('reid_confidence_threshold', 0.75))
         
+        # Gait settings
+        gait_config = self._config.get('gait', {})
+        self.gait_enabled_check.setChecked(gait_config.get('enabled', True))
+        self.gait_threshold_spin.setValue(gait_config.get('threshold', 0.70))
+        self.gait_sequence_spin.setValue(gait_config.get('sequence_length', 30))
+        
         # Telegram
         telegram_config = self._config.get('telegram', {})
         self.telegram_token_edit.setText(telegram_config.get('bot_token', ''))
@@ -672,6 +702,13 @@ class SettingsDialog(QDialog):
             'face_confidence_threshold': self.face_confidence_spin.value(),
             'reid_confidence_threshold': self.reid_confidence_spin.value(),
             'detection_classes': ['person', 'cat', 'dog']
+        }
+        
+        # Gait
+        self._config['gait'] = {
+            'enabled': self.gait_enabled_check.isChecked(),
+            'threshold': self.gait_threshold_spin.value(),
+            'sequence_length': self.gait_sequence_spin.value()
         }
         
         # Telegram

@@ -21,6 +21,11 @@
             "dog"
         ]
     },
+    "gait": {
+        "enabled": true,
+        "threshold": 0.70,
+        "sequence_length": 30
+    },
     "storage": {
         "max_size_gb": 10,
         "recordings_path": "./data/logs/",

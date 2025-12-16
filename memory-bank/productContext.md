@@ -26,10 +26,10 @@ FacePro adds AI intelligence to existing camera infrastructure:
 
 ### Detection Flow
 ```
-Camera Frame → Motion Check → Object Detection → Face Recognition → Re-ID → Alert
-                   ↓                 ↓                   ↓            ↓
-               (skip if           (filter for        (known?      (match by
-                no motion)        person/cat/dog)     identify)    clothing)
+Camera Frame → Motion Check → Object Detection → Face Recognition → Re-ID → Gait → Alert
+                   ↓                 ↓                   ↓            ↓        ↓
+               (skip if           (filter for        (known?      (match   (match by
+                no motion)        person/cat/dog)     identify)   clothing) walking)
 ```
 
 ## User Experience Goals
@@ -52,8 +52,9 @@ Camera Frame → Motion Check → Object Detection → Face Recognition → Re-I
 
 ## Key Differentiators
 1. **Re-ID capability** - Track people even when face isn't visible
-2. **GSM fallback** - Alerts work even without internet
-3. **Hardware lock** - Prevents piracy, protects commercial value
-4. **Local-first** - Privacy by design
-5. **Multi-language** - English, Azerbaijani, Russian with live switching
-6. **Modular UI** - Modern dashboard design with sidebar, tabs, filters
+2. **Gait Recognition** - Identify people by walking pattern (NEW)
+3. **GSM fallback** - Alerts work even without internet
+4. **Hardware lock** - Prevents piracy, protects commercial value
+5. **Local-first** - Privacy by design
+6. **Multi-language** - English, Azerbaijani, Russian with live switching
+7. **Modular UI** - Modern dashboard design with sidebar, tabs, filters

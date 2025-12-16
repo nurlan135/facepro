@@ -1,0 +1,4 @@
+# file: C:\Users\HP\Projects\facepro\src\utils\helpers.py
+# hypothesis_version: 6.148.7
+
+[554, 1000, 1024, 3600, '%Y%m%d', '%Y%m%d_%H%M%S', '%Y-%m-%d %H:%M:%S', '-c', '-n', '-w', '1', '192.168.1.100', '8.8.8.8', 'Testing helpers...', '__main__', 'admin', 'cameras', 'cameras.json', 'config', 'dahua', 'data', 'db', 'facepro.db', 'faces', 'frozen', 'generic', 'hikvision', 'logs', 'np.ndarray', 'password123', 'ping', 'r', 'settings.json', 'snapshot', 'unknown', 'utf-8', 'w', 'windows']
