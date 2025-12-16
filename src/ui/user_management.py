@@ -25,6 +25,7 @@ from PyQt6.QtGui import QKeyEvent
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from src.utils.auth_manager import get_auth_manager
+from src.utils.i18n import tr
 from src.ui.styles import COLORS
 
 
@@ -280,7 +281,7 @@ class AddUserDialog(QDialog):
     
     def _setup_ui(self):
         """Set up the dialog UI."""
-        self.setWindowTitle("Add User")
+        self.setWindowTitle(tr("add_user_title"))
         self.setFixedSize(400, 380)
         self.setStyleSheet(USER_MANAGEMENT_STYLE)
         self.setWindowFlags(
@@ -294,7 +295,7 @@ class AddUserDialog(QDialog):
         layout.setContentsMargins(30, 30, 30, 30)
         
         # Title
-        title = QLabel("Add New User")
+        title = QLabel(tr("add_user_title"))
         title.setObjectName("Title")
         layout.addWidget(title)
         
@@ -319,22 +320,22 @@ class AddUserDialog(QDialog):
         # Username
         username_layout = QVBoxLayout()
         username_layout.setSpacing(4)
-        username_label = QLabel("Username")
+        username_label = QLabel(tr("user_field_username"))
         username_label.setObjectName("FieldLabel")
         username_layout.addWidget(username_label)
         self.username_input = QLineEdit()
-        self.username_input.setPlaceholderText("Enter username (min 3 characters)")
+        self.username_input.setPlaceholderText(tr("user_placeholder_username"))
         username_layout.addWidget(self.username_input)
         layout.addLayout(username_layout)
         
         # Password
         password_layout = QVBoxLayout()
         password_layout.setSpacing(4)
-        password_label = QLabel("Password")
+        password_label = QLabel(tr("user_field_password"))
         password_label.setObjectName("FieldLabel")
         password_layout.addWidget(password_label)
         self.password_input = QLineEdit()
-        self.password_input.setPlaceholderText("Enter password (min 6 characters)")
+        self.password_input.setPlaceholderText(tr("user_placeholder_password"))
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
         password_layout.addWidget(self.password_input)
         layout.addLayout(password_layout)
@@ -342,11 +343,11 @@ class AddUserDialog(QDialog):
         # Role
         role_layout = QVBoxLayout()
         role_layout.setSpacing(4)
-        role_label = QLabel("Role")
+        role_label = QLabel(tr("user_field_role"))
         role_label.setObjectName("FieldLabel")
         role_layout.addWidget(role_label)
         self.role_combo = QComboBox()
-        self.role_combo.addItems(["Operator", "Admin"])
+        self.role_combo.addItems([tr("user_mgmt_role_operator"), tr("user_mgmt_role_admin")])
         role_layout.addWidget(self.role_combo)
         layout.addLayout(role_layout)
     
@@ -363,13 +364,13 @@ class AddUserDialog(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(12)
         
-        cancel_btn = QPushButton("Cancel")
+        cancel_btn = QPushButton(tr("user_btn_cancel"))
         cancel_btn.setObjectName("CancelBtn")
         cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
         
-        self.save_btn = QPushButton("Add User")
+        self.save_btn = QPushButton(tr("user_btn_add"))
         self.save_btn.setObjectName("SaveBtn")
         self.save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.save_btn.clicked.connect(self._add_user)
@@ -386,18 +387,20 @@ class AddUserDialog(QDialog):
         """Add the new user."""
         username = self.username_input.text().strip()
         password = self.password_input.text()
-        role = self.role_combo.currentText().lower()
+        # Get role value (convert display text back to lowercase)
+        role_text = self.role_combo.currentText()
+        role = "admin" if role_text == tr("user_mgmt_role_admin") else "operator"
         
         if len(username) < 3:
-            self._show_error("Username must be at least 3 characters")
+            self._show_error(tr("user_err_username_short"))
             return
         
         if len(password) < 6:
-            self._show_error("Password must be at least 6 characters")
+            self._show_error(tr("user_err_password_short"))
             return
         
         self.save_btn.setEnabled(False)
-        self.save_btn.setText("Adding...")
+        self.save_btn.setText(tr("user_adding"))
         QApplication.processEvents()
         
         success, message = self._auth_manager.create_account(username, password, role)
@@ -408,7 +411,7 @@ class AddUserDialog(QDialog):
         else:
             self._show_error(message)
             self.save_btn.setEnabled(True)
-            self.save_btn.setText("Add User")
+            self.save_btn.setText(tr("user_btn_add"))
 
 
 class EditUserDialog(QDialog):
@@ -431,7 +434,7 @@ class EditUserDialog(QDialog):
     
     def _setup_ui(self):
         """Set up the dialog UI."""
-        self.setWindowTitle("Edit User")
+        self.setWindowTitle(tr("edit_user_title"))
         self.setFixedSize(400, 380)
         self.setStyleSheet(USER_MANAGEMENT_STYLE)
         self.setWindowFlags(
@@ -445,7 +448,7 @@ class EditUserDialog(QDialog):
         layout.setContentsMargins(30, 30, 30, 30)
         
         # Title
-        title = QLabel(f"Edit User: {self._username}")
+        title = QLabel(f"{tr('edit_user_title')}: {self._username}")
         title.setObjectName("Title")
         layout.addWidget(title)
         
@@ -468,7 +471,7 @@ class EditUserDialog(QDialog):
         # Username (read-only)
         username_layout = QVBoxLayout()
         username_layout.setSpacing(4)
-        username_label = QLabel("Username")
+        username_label = QLabel(tr("user_field_username"))
         username_label.setObjectName("FieldLabel")
         username_layout.addWidget(username_label)
         username_display = QLineEdit(self._username)
@@ -479,11 +482,11 @@ class EditUserDialog(QDialog):
         # New Password (optional)
         password_layout = QVBoxLayout()
         password_layout.setSpacing(4)
-        password_label = QLabel("New Password (leave empty to keep current)")
+        password_label = QLabel(tr("user_field_new_password"))
         password_label.setObjectName("FieldLabel")
         password_layout.addWidget(password_label)
         self.password_input = QLineEdit()
-        self.password_input.setPlaceholderText("Enter new password (min 6 characters)")
+        self.password_input.setPlaceholderText(tr("user_placeholder_new_password"))
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
         password_layout.addWidget(self.password_input)
         layout.addLayout(password_layout)
@@ -491,11 +494,11 @@ class EditUserDialog(QDialog):
         # Role
         role_layout = QVBoxLayout()
         role_layout.setSpacing(4)
-        role_label = QLabel("Role")
+        role_label = QLabel(tr("user_field_role"))
         role_label.setObjectName("FieldLabel")
         role_layout.addWidget(role_label)
         self.role_combo = QComboBox()
-        self.role_combo.addItems(["Operator", "Admin"])
+        self.role_combo.addItems([tr("user_mgmt_role_operator"), tr("user_mgmt_role_admin")])
         # Set current role
         index = 1 if self._current_role == 'admin' else 0
         self.role_combo.setCurrentIndex(index)
@@ -515,13 +518,13 @@ class EditUserDialog(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(12)
         
-        cancel_btn = QPushButton("Cancel")
+        cancel_btn = QPushButton(tr("user_btn_cancel"))
         cancel_btn.setObjectName("CancelBtn")
         cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
         
-        self.save_btn = QPushButton("Save Changes")
+        self.save_btn = QPushButton(tr("user_btn_save"))
         self.save_btn.setObjectName("SaveBtn")
         self.save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.save_btn.clicked.connect(self._save_changes)
@@ -537,15 +540,17 @@ class EditUserDialog(QDialog):
     def _save_changes(self):
         """Save the user changes."""
         password = self.password_input.text()
-        role = self.role_combo.currentText().lower()
+        # Get role value (convert display text back to lowercase)
+        role_text = self.role_combo.currentText()
+        role = "admin" if role_text == tr("user_mgmt_role_admin") else "operator"
         
         # Validate password if provided
         if password and len(password) < 6:
-            self._show_error("Password must be at least 6 characters")
+            self._show_error(tr("user_err_password_short"))
             return
         
         self.save_btn.setEnabled(False)
-        self.save_btn.setText("Saving...")
+        self.save_btn.setText(tr("user_saving"))
         QApplication.processEvents()
         
         # Update account
@@ -569,7 +574,7 @@ class EditUserDialog(QDialog):
         else:
             self._show_error(message)
             self.save_btn.setEnabled(True)
-            self.save_btn.setText("Save Changes")
+            self.save_btn.setText(tr("user_btn_save"))
 
 
 class UserManagementDialog(QDialog):
@@ -593,7 +598,7 @@ class UserManagementDialog(QDialog):
     
     def _setup_ui(self):
         """Set up the dialog UI."""
-        self.setWindowTitle("User Management")
+        self.setWindowTitle(tr("user_mgmt_title"))
         self.setMinimumSize(700, 500)
         self.setStyleSheet(USER_MANAGEMENT_STYLE)
         self.setWindowFlags(
@@ -630,11 +635,11 @@ class UserManagementDialog(QDialog):
         header_layout = QVBoxLayout()
         header_layout.setSpacing(4)
         
-        title = QLabel("User Management")
+        title = QLabel(tr("user_mgmt_title"))
         title.setObjectName("Title")
         header_layout.addWidget(title)
         
-        subtitle = QLabel("Manage user accounts and permissions")
+        subtitle = QLabel(tr("user_mgmt_subtitle"))
         subtitle.setObjectName("Subtitle")
         header_layout.addWidget(subtitle)
         
@@ -644,7 +649,7 @@ class UserManagementDialog(QDialog):
         """Create user table."""
         self.user_table = QTableWidget()
         self.user_table.setColumnCount(4)
-        self.user_table.setHorizontalHeaderLabels(["Username", "Role", "Created", "ID"])
+        self.user_table.setHorizontalHeaderLabels([tr("user_mgmt_col_username"), tr("user_mgmt_col_role"), tr("user_mgmt_col_created"), "ID"])
         
         # Hide ID column (used for operations)
         self.user_table.setColumnHidden(3, True)
@@ -676,14 +681,14 @@ class UserManagementDialog(QDialog):
         btn_layout.setSpacing(12)
         
         # Add User button
-        self.add_btn = QPushButton("➕ Add User")
+        self.add_btn = QPushButton(f"➕ {tr('user_mgmt_add')}")
         self.add_btn.setObjectName("AddBtn")
         self.add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.add_btn.clicked.connect(self._add_user)
         btn_layout.addWidget(self.add_btn)
         
         # Edit button
-        self.edit_btn = QPushButton("✏️ Edit")
+        self.edit_btn = QPushButton(f"✏️ {tr('user_mgmt_edit')}")
         self.edit_btn.setObjectName("EditBtn")
         self.edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.edit_btn.setEnabled(False)
@@ -691,7 +696,7 @@ class UserManagementDialog(QDialog):
         btn_layout.addWidget(self.edit_btn)
         
         # Delete button
-        self.delete_btn = QPushButton("🗑️ Delete")
+        self.delete_btn = QPushButton(f"🗑️ {tr('user_mgmt_delete')}")
         self.delete_btn.setObjectName("DeleteBtn")
         self.delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.delete_btn.setEnabled(False)
@@ -708,7 +713,7 @@ class UserManagementDialog(QDialog):
         footer_layout = QHBoxLayout()
         footer_layout.addStretch()
         
-        close_btn = QPushButton("Close")
+        close_btn = QPushButton(tr("user_mgmt_close"))
         close_btn.setObjectName("CloseBtn")
         close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         close_btn.clicked.connect(self.accept)
@@ -796,9 +801,9 @@ class UserManagementDialog(QDialog):
         
         # Confirmation dialog
         msg_box = QMessageBox(self)
-        msg_box.setWindowTitle("Confirm Delete")
-        msg_box.setText(f"Are you sure you want to delete user '{user['username']}'?")
-        msg_box.setInformativeText("This action cannot be undone.")
+        msg_box.setWindowTitle(tr("user_mgmt_confirm_delete"))
+        msg_box.setText(f"{tr('user_mgmt_delete_msg')} '{user['username']}'?")
+        msg_box.setInformativeText(tr("user_delete_cannot_undo"))
         msg_box.setIcon(QMessageBox.Icon.Warning)
         msg_box.setStandardButtons(
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
@@ -828,7 +833,7 @@ class UserManagementDialog(QDialog):
             else:
                 # Show error
                 error_box = QMessageBox(self)
-                error_box.setWindowTitle("Error")
+                error_box.setWindowTitle(tr("user_error_title"))
                 error_box.setText(message)
                 error_box.setIcon(QMessageBox.Icon.Critical)
                 error_box.setStyleSheet(f"""

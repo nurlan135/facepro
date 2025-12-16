@@ -22,6 +22,7 @@ from PyQt6.QtGui import QKeyEvent
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from src.utils.auth_manager import get_auth_manager
+from src.utils.i18n import tr
 from src.ui.styles import COLORS
 
 
@@ -166,7 +167,7 @@ class ChangePasswordDialog(QDialog):
     
     def _setup_ui(self):
         """Set up the dialog UI."""
-        self.setWindowTitle("Change Password")
+        self.setWindowTitle(tr("change_pwd_title"))
         self.setFixedSize(440, 480)
         self.setStyleSheet(CHANGE_PASSWORD_STYLE)
         self.setWindowFlags(
@@ -211,12 +212,12 @@ class ChangePasswordDialog(QDialog):
         header_layout.setSpacing(8)
         
         # Title
-        title_label = QLabel("Change Password")
+        title_label = QLabel(tr("change_pwd_title"))
         title_label.setObjectName("Title")
         header_layout.addWidget(title_label)
         
         # Subtitle
-        subtitle = QLabel("Enter your current password and choose a new one")
+        subtitle = QLabel(tr("change_pwd_subtitle"))
         subtitle.setObjectName("Subtitle")
         subtitle.setWordWrap(True)
         header_layout.addWidget(subtitle)
@@ -232,12 +233,12 @@ class ChangePasswordDialog(QDialog):
         current_layout = QVBoxLayout()
         current_layout.setSpacing(6)
         
-        current_label = QLabel("Current Password")
+        current_label = QLabel(tr("change_pwd_current"))
         current_label.setObjectName("FieldLabel")
         current_layout.addWidget(current_label)
         
         self.current_password_input = QLineEdit()
-        self.current_password_input.setPlaceholderText("Enter your current password")
+        self.current_password_input.setPlaceholderText(tr("change_pwd_current_placeholder"))
         self.current_password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.current_password_input.returnPressed.connect(self._focus_new_password)
         current_layout.addWidget(self.current_password_input)
@@ -248,12 +249,12 @@ class ChangePasswordDialog(QDialog):
         new_layout = QVBoxLayout()
         new_layout.setSpacing(6)
         
-        new_label = QLabel("New Password")
+        new_label = QLabel(tr("change_pwd_new"))
         new_label.setObjectName("FieldLabel")
         new_layout.addWidget(new_label)
         
         self.new_password_input = QLineEdit()
-        self.new_password_input.setPlaceholderText("Enter new password (min 6 characters)")
+        self.new_password_input.setPlaceholderText(tr("change_pwd_new_placeholder"))
         self.new_password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.new_password_input.returnPressed.connect(self._focus_confirm_password)
         new_layout.addWidget(self.new_password_input)
@@ -264,12 +265,12 @@ class ChangePasswordDialog(QDialog):
         confirm_layout = QVBoxLayout()
         confirm_layout.setSpacing(6)
         
-        confirm_label = QLabel("Confirm New Password")
+        confirm_label = QLabel(tr("change_pwd_confirm"))
         confirm_label.setObjectName("FieldLabel")
         confirm_layout.addWidget(confirm_label)
         
         self.confirm_password_input = QLineEdit()
-        self.confirm_password_input.setPlaceholderText("Re-enter new password")
+        self.confirm_password_input.setPlaceholderText(tr("change_pwd_confirm_placeholder"))
         self.confirm_password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.confirm_password_input.returnPressed.connect(self._change_password)
         confirm_layout.addWidget(self.confirm_password_input)
@@ -302,14 +303,14 @@ class ChangePasswordDialog(QDialog):
         btn_layout.setSpacing(12)
         
         # Cancel button
-        cancel_btn = QPushButton("Cancel")
+        cancel_btn = QPushButton(tr("change_pwd_btn_cancel"))
         cancel_btn.setObjectName("CancelBtn")
         cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
         
         # Save button
-        self.save_btn = QPushButton("Change Password")
+        self.save_btn = QPushButton(tr("change_pwd_btn_change"))
         self.save_btn.setObjectName("SaveBtn")
         self.save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.save_btn.clicked.connect(self._change_password)
@@ -350,28 +351,28 @@ class ChangePasswordDialog(QDialog):
         
         # Validate input
         if not current_password:
-            self._show_error("Please enter your current password")
+            self._show_error(tr("change_pwd_err_current"))
             self.current_password_input.setFocus()
             return
         
         if not new_password:
-            self._show_error("Please enter a new password")
+            self._show_error(tr("change_pwd_err_new"))
             self.new_password_input.setFocus()
             return
         
         if len(new_password) < 6:
-            self._show_error("New password must be at least 6 characters")
+            self._show_error(tr("change_pwd_err_min_chars"))
             self.new_password_input.setFocus()
             return
         
         if new_password != confirm_password:
-            self._show_error("New passwords do not match")
+            self._show_error(tr("change_pwd_err_mismatch"))
             self.confirm_password_input.setFocus()
             self.confirm_password_input.clear()
             return
         
         if current_password == new_password:
-            self._show_error("New password must be different from current password")
+            self._show_error(tr("change_pwd_err_same"))
             self.new_password_input.setFocus()
             return
         
@@ -380,7 +381,7 @@ class ChangePasswordDialog(QDialog):
         
         # Disable save button during operation
         self.save_btn.setEnabled(False)
-        self.save_btn.setText("Changing...")
+        self.save_btn.setText(tr("change_pwd_changing"))
         QApplication.processEvents()
         
         # Get user ID (use provided or current user)
@@ -388,9 +389,9 @@ class ChangePasswordDialog(QDialog):
         if user_id is None:
             current_user = self._auth_manager.get_current_user()
             if not current_user:
-                self._show_error("No user logged in")
+                self._show_error(tr("change_pwd_err_no_user"))
                 self.save_btn.setEnabled(True)
-                self.save_btn.setText("Change Password")
+                self.save_btn.setText(tr("change_pwd_btn_change"))
                 return
             user_id = current_user.user_id
         
@@ -411,7 +412,7 @@ class ChangePasswordDialog(QDialog):
             self.confirm_password_input.clear()
             
             # Re-enable button with success text
-            self.save_btn.setText("Done")
+            self.save_btn.setText(tr("change_pwd_done"))
             
             # Close dialog after short delay
             from PyQt6.QtCore import QTimer
@@ -419,7 +420,7 @@ class ChangePasswordDialog(QDialog):
         else:
             self._show_error(message)
             self.save_btn.setEnabled(True)
-            self.save_btn.setText("Change Password")
+            self.save_btn.setText(tr("change_pwd_btn_change"))
             
             # Clear current password field on failure
             self.current_password_input.clear()

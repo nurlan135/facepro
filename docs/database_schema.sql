@@ -36,3 +36,20 @@ CREATE TABLE IF NOT EXISTS events (
     is_sent_telegram BOOLEAN DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 5. Application Users (Login System)
+-- Separate from 'users' table which is for face recognition
+CREATE TABLE IF NOT EXISTS app_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,  -- SHA-256 hash
+    salt TEXT NOT NULL,           -- Unique salt per user
+    role TEXT NOT NULL DEFAULT 'operator',  -- 'admin' or 'operator'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    failed_attempts INTEGER DEFAULT 0,  -- For account lockout
+    locked_until TIMESTAMP              -- Lock expiry time
+);
+
+-- Roles:
+-- 'admin': Full access (settings, user management, face enrollment)
+-- 'operator': Limited access (monitoring, logs, change own password)

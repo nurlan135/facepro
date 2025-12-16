@@ -91,10 +91,14 @@ FacePro/
     │   ├── license_dialog.py  # License activation UI
     │   ├── zone_editor.py     # ROI zone editing
     │   ├── styles.py         # Dark theme
+    │   ├── login_dialog.py   # User login UI (NEW)
+    │   ├── setup_wizard.py   # First-time setup (NEW)
+    │   ├── user_management.py # User CRUD - Admin only (NEW)
+    │   ├── change_password.py # Password change dialog (NEW)
     │   └── dashboard/        # Modular UI components
     │       ├── __init__.py
     │       ├── widgets.py    # ActivityItem, ActionCard
-    │       ├── sidebar.py    # SidebarWidget
+    │       ├── sidebar.py    # SidebarWidget (role-based visibility)
     │       ├── home_page.py  # HomePage
     │       ├── camera_page.py # CameraPage
     │       └── logs_page.py  # LogsPage with filters
@@ -103,6 +107,7 @@ FacePro/
         ├── logger.py         # Centralized logging
         ├── helpers.py        # Utility functions
         ├── license_manager.py # License validation
+        ├── auth_manager.py   # User authentication (NEW)
         └── i18n.py           # Internationalization (EN, AZ, RU)
 ```
 

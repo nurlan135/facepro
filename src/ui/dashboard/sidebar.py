@@ -93,13 +93,13 @@ class SidebarWidget(QWidget):
         layout.addWidget(self.btn_settings)
         
         # User Management Button (Admin only)
-        self.btn_user_mgmt = QPushButton(f"👤  User Management")
+        self.btn_user_mgmt = QPushButton(f"👤  {tr('sidebar_user_management')}")
         self.btn_user_mgmt.setProperty("class", "sidebar_btn")
         self.btn_user_mgmt.clicked.connect(self.user_management_clicked.emit)
         layout.addWidget(self.btn_user_mgmt)
         
         # Change Password Button (All users)
-        self.btn_change_pwd = QPushButton(f"🔑  Change Password")
+        self.btn_change_pwd = QPushButton(f"🔑  {tr('sidebar_change_password')}")
         self.btn_change_pwd.setProperty("class", "sidebar_btn")
         self.btn_change_pwd.clicked.connect(self.change_password_clicked.emit)
         layout.addWidget(self.btn_change_pwd)
@@ -120,7 +120,7 @@ class SidebarWidget(QWidget):
         layout.addSpacing(10)
         
         # Logout Button
-        self.btn_logout = QPushButton(f"🔓  Logout")
+        self.btn_logout = QPushButton(f"🔓  {tr('sidebar_logout')}")
         self.btn_logout.setProperty("class", "sidebar_btn")
         self.btn_logout.clicked.connect(self.logout_clicked.emit)
         layout.addWidget(self.btn_logout)
@@ -164,8 +164,8 @@ class SidebarWidget(QWidget):
         self.status_btn.setText(f"• {tr('sidebar_active')}")
         self.btn_manage.setText(f"👥  {tr('sidebar_manage_faces')}")
         self.btn_settings.setText(f"⚙  {tr('sidebar_settings')}")
-        self.btn_user_mgmt.setText(f"👤  User Management")
-        self.btn_change_pwd.setText(f"🔑  Change Password")
-        self.btn_logout.setText(f"🔓  Logout")
+        self.btn_user_mgmt.setText(f"👤  {tr('sidebar_user_management')}")
+        self.btn_change_pwd.setText(f"🔑  {tr('sidebar_change_password')}")
+        self.btn_logout.setText(f"🔓  {tr('sidebar_logout')}")
         self.stats_group.setTitle(f"📊 {tr('sidebar_statistics')}")
         self.btn_exit.setText(f"🚪 {tr('sidebar_exit')}")

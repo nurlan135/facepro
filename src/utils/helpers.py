@@ -6,11 +6,12 @@ Tətbiq üçün yardımçı funksiyalar.
 - Konfiqurasiya oxuma/yazma
 - Vaxt formatlaşdırma
 """
+from __future__ import annotations
 
 import json
 import os
 from datetime import datetime
-from typing import Optional, Tuple, Any, Dict
+from typing import Optional, Tuple, Any, Dict, TYPE_CHECKING
 
 # Optional imports for OpenCV and NumPy
 try:
@@ -21,6 +22,9 @@ except ImportError:
     CV2_AVAILABLE = False
     cv2 = None
     np = None
+
+if TYPE_CHECKING:
+    import numpy as np
 
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtCore import Qt
@@ -34,7 +38,7 @@ logger = get_logger()
 # Image Conversion Functions
 # =============================================================================
 
-def cv2_to_qpixmap(cv_img: np.ndarray, target_size: Optional[Tuple[int, int]] = None) -> QPixmap:
+def cv2_to_qpixmap(cv_img: "np.ndarray", target_size: Optional[Tuple[int, int]] = None) -> QPixmap:
     """
     OpenCV şəklini PyQt6 QPixmap-a çevirir.
     

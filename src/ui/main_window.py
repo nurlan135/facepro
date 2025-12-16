@@ -389,7 +389,7 @@ class MainWindow(QMainWindow):
     def _logout(self):
         """Handle manual logout."""
         reply = QMessageBox.question(
-            self, "Logout", "Are you sure you want to logout?",
+            self, tr("logout_confirm_title"), tr("logout_confirm_msg"),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if reply == QMessageBox.StandardButton.Yes:
@@ -425,8 +425,8 @@ class MainWindow(QMainWindow):
         """Handle session timeout signal."""
         logger.info("Session timeout - auto logout triggered")
         QMessageBox.information(
-            self, "Session Timeout", 
-            "Your session has expired due to inactivity. Please log in again."
+            self, tr("session_timeout_title"), 
+            tr("session_timeout_msg")
         )
     
     def _check_session_timeout(self):
@@ -523,6 +523,11 @@ class MainWindow(QMainWindow):
             if reply == QMessageBox.StandardButton.No: 
                 return
             self._stop_system()
+        
+        # Logout before exiting for security
+        if self._auth_manager.is_logged_in():
+            self._auth_manager.logout()
+        
         QApplication.quit()
 
     def closeEvent(self, event):

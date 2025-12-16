@@ -1,42 +1,40 @@
 # FacePro - Active Context
 
 ## Current Work Focus
-**Session Date**: 2025-12-15 (Updated: 20:30)
+**Session Date**: 2025-12-16 (Updated)
 
-### Completed This Session
-1. ✅ Project structure created (all directories)
-2. ✅ SQLite database initialized (4 tables)
-3. ✅ Core modules implemented:
-   - `logger.py` - Centralized logging
-   - `helpers.py` - Utility functions
-   - `cleaner.py` - FIFO storage manager
-   - `camera_thread.py` - Video capture with auto-reconnect
-   - `ai_thread.py` - Full AI pipeline
-   - `reid_engine.py` - Person Re-ID
-   - `gsm_modem.py` - SMS via AT commands
-4. ✅ UI components implemented:
-   - `styles.py` - Dark theme
-   - `video_widget.py` - Video display
-   - `settings_dialog.py` - Settings UI
-   - `main_window.py` - Main dashboard (refactored)
-5. ✅ License system implemented
-6. ✅ **Face Enrollment UI implemented**
-7. ✅ **License Activation GUI Dialog implemented**
-8. ✅ **Telegram Notification Integration**
-9. ✅ **Dashboard UI Redesign** (FaceGuard Pro theme)
-10. ✅ **UI Modularization** - main_window.py refactored:
-    - `src/ui/dashboard/widgets.py` - ActivityItem, ActionCard
-    - `src/ui/dashboard/sidebar.py` - SidebarWidget
-    - `src/ui/dashboard/home_page.py` - HomePage
-    - `src/ui/dashboard/camera_page.py` - CameraPage
-    - `src/ui/dashboard/logs_page.py` - LogsPage with filters
-11. ✅ **Live Language Switching** - UI updates without restart
-12. ✅ **Enhanced Logs Page**:
-    - Filter buttons (All/Known/Unknown)
-    - Entry count display
-    - Duplicate prevention (2 sec cooldown)
-    - Camera name in entries
-    - Date + Time format
+### Completed This Session (2025-12-16)
+1. ✅ **User Login System Implementation** (Task 10):
+   - `SetupWizardDialog` - İlk admin hesabı yaratma
+   - `LoginDialog` - İstifadəçi girişi
+   - `UserManagementDialog` - İstifadəçi idarəetməsi (Admin only)
+   - `ChangePasswordDialog` - Şifrə dəyişmə
+   - `AuthManager` - Autentifikasiya və sessiya idarəetməsi
+
+2. ✅ **i18n (Internationalization) Updates**:
+   - Bütün Login/Auth UI komponentləri üçün tərcümələr (EN, AZ, RU)
+   - Setup Wizard, Login Dialog, User Management, Change Password
+   - Sidebar düymələri (Logout, User Management, Change Password)
+   - Session timeout mesajları
+   - Error mesajları
+
+3. ✅ **Role-Based Access Control**:
+   - Admin: Tam səlahiyyət (ayarlar, istifadəçi idarəetməsi, üz qeydiyyatı)
+   - Operator: Məhdud səlahiyyət (yalnız monitorinq və jurnallar)
+   - Sidebar düymələri rol əsasında gizlədilir
+
+4. ✅ **Security Improvements**:
+   - Proqramdan çıxanda avtomatik logout
+   - Session timeout (30 dəqiqə default)
+   - Account lockout (3 uğursuz cəhddən sonra 5 dəqiqə)
+   - SHA-256 + salt ilə şifrə hash-ləmə
+
+### Previous Session Completions
+- Project structure, SQLite database, Core modules
+- UI components, License system, Face Enrollment
+- Dashboard UI Redesign, UI Modularization
+- Live Language Switching, Enhanced Logs Page
+- Telegram Notification Integration
 
 ### Current Machine License
 - **Machine ID**: E3B0-C442-98FC-1C14
@@ -44,32 +42,32 @@
 - **Status**: Activated ✅
 
 ## Recent Changes
-- **UI Modularization:** Split main_window.py (730→350 lines) into dashboard components.
-- **Live Language Switching:** Using QObject signals for real-time translation updates.
-- **Logs Filtering:** Added All/Known/Unknown filters with entry count.
-- **Duplicate Prevention:** Same person detection throttled to 2 seconds.
-- **Camera Name Display:** Each log entry shows which camera detected it.
+- **User Authentication:** Full login system with setup wizard for first-time use
+- **Role-Based UI:** Operator users see limited sidebar options
+- **i18n Complete:** All auth-related UI translated to AZ, EN, RU
+- **Exit/Logout Distinction:** "Hesabdan Çıx" vs "Proqramdan Çıx" ayrılıb
 
 ## Active Decisions
-- **Database Path:** The database is now located at `data/db/facepro.db` relative to the executable (or `_internal` folder), ensuring portability.
-- **Installer Strategy:** Using a custom Python script (`create_setup.py`) wrapping PyInstaller-generated files into a self-extracting executable for simplicity without external dependencies (like Inno Setup).
-- **License Key:** License keys are now tied to a robust Machine ID valid only on the specific hardware.
+- **Database Path:** `data/db/facepro.db` (app_users table added for auth)
+- **Password Storage:** SHA-256 hash with unique salt per user
+- **Session Management:** 30 minute timeout, configurable 5-120 minutes
+- **Role System:** Admin (full access) vs Operator (monitoring only)
 
 ## Current Focus
-Transitioning from Development to Deployment/Release phase. The core functionality and packaging are complete.
+User Login System implementation complete. Ready for final testing and deployment.
 
 ## Next Steps
-1.  **User Documentation:** Create a user manual (PDF/HTML) to include with the installer.
-2.  **Refurbished Mini PC Bundle:** (Business Task) Prepare the "FacePro AI Box" strategy.
-3.  **Final Testing:** Full end-to-end test on a fresh machine (Virtual Machine) to verify the installer.
- ✅
-
-### Medium-term
-9. [x] Re-ID integration into pipeline ✅
-10. [ ] Performance optimization
-11. [x] Multi-language support (AZ, EN, RU) ✅
-13. [ ] License Hardening (Hardware-locked + Machine ID binding)
+1. **Final Testing:** Test all auth flows (setup, login, logout, password change)
+2. **User Documentation:** Update user manual with login instructions
+3. **Deployment:** Package and distribute
 ## Active Decisions
+
+### User Authentication System
+- **Password Hashing:** SHA-256 with unique salt per user
+- **Session Timeout:** 30 minutes default, configurable 5-120 min
+- **Account Lockout:** 3 failed attempts = 5 minute lock
+- **Role System:** Admin (full) vs Operator (limited)
+- **Database Table:** `app_users` (id, username, password_hash, salt, role, created_at, failed_attempts, locked_until)
 
 ### License System
 - Using SHA-256 + Base32 encoding
@@ -109,8 +107,9 @@ Transitioning from Development to Deployment/Release phase. The core functionali
 - Never crash the UI thread
 
 ### Database Schema
-- `users` table: id, name, created_at (NO role column)
-- `face_encodings` table: id, user_id, encoding (NO image_path column)
+- `users` table: id, name, created_at (face recognition users)
+- `app_users` table: id, username, password_hash, salt, role, etc. (login system)
+- `face_encodings` table: id, user_id, encoding
 - `reid_embeddings` table: for future Re-ID vectors
 - `events` table: detection history
 
@@ -118,8 +117,26 @@ Transitioning from Development to Deployment/Release phase. The core functionali
 - Dark theme only (for now)
 - Consistent color coding (green=known, red=unknown)
 - Status indicators for connection states
+- Role-based UI visibility (hide admin features for operators)
+
+### i18n (Internationalization)
+- Three languages: English (en), Azerbaijani (az), Russian (ru)
+- Translation function: `tr("key")` from `src/utils/i18n.py`
+- Live language switching without restart
+- All UI text should use translation keys
 
 ## Learnings and Project Insights
+
+### User Authentication
+- Setup wizard appears only when no users exist in database
+- Login dialog blocks main window until successful auth
+- Logout clears session and returns to login
+- Exit from app also logs out for security
+
+### Role-Based Access
+- Admin: Settings, User Management, Face Enrollment visible
+- Operator: Only monitoring, logs, and password change visible
+- Implemented in `sidebar.set_user_info()` method
 
 ### dlib Installation
 - Requires Visual Studio Build Tools + CMake
@@ -133,8 +150,3 @@ Transitioning from Development to Deployment/Release phase. The core functionali
 ### Database Schema Sync
 - Always check actual schema before writing SQL
 - Don't assume columns exist (role, image_path were not in schema)
-
-### Face Recognition Flow
-1. Enroll: Image → face_recognition.face_encodings() → pickle → BLOB
-2. Load: BLOB → pickle.loads() → numpy array
-3. Match: face_recognition.face_distance() → threshold check

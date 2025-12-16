@@ -51,12 +51,17 @@ Main Thread (UI)
 ```
 src/ui/
 ├── main_window.py          # Coordinator (~350 lines)
-│   └── Manages system state, signals, tray
+│   └── Manages system state, signals, tray, auth
+│
+├── login_dialog.py         # User authentication (NEW)
+├── setup_wizard.py         # First-time admin setup (NEW)
+├── user_management.py      # User CRUD - Admin only (NEW)
+├── change_password.py      # Password change dialog (NEW)
 │
 └── dashboard/              # Component Modules
     ├── __init__.py         # Exports all components
     ├── widgets.py          # ActivityItem, ActionCard
-    ├── sidebar.py          # SidebarWidget (profile, nav, stats)
+    ├── sidebar.py          # SidebarWidget (profile, nav, stats, role-based)
     ├── home_page.py        # HomePage (welcome, cards, activity)
     ├── camera_page.py      # CameraPage (video grid, controls)
     └── logs_page.py        # LogsPage (filters, export)
@@ -67,6 +72,53 @@ src/ui/
 - Easier testing and maintenance
 - Parallel development possible
 - `main_window.py` reduced from 730→350 lines
+
+### User Authentication Architecture (NEW)
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Authentication Flow                        │
+├─────────────────────────────────────────────────────────────┤
+│  App Start                                                    │
+│      │                                                        │
+│      ▼                                                        │
+│  ┌─────────────────┐    No Users    ┌──────────────────┐    │
+│  │  Check DB for   │ ─────────────► │  SetupWizard     │    │
+│  │  existing users │                │  (Create Admin)  │    │
+│  └─────────────────┘                └──────────────────┘    │
+│      │ Has Users                            │               │
+│      ▼                                      ▼               │
+│  ┌─────────────────┐                ┌──────────────────┐    │
+│  │  LoginDialog    │ ◄───────────── │  First Admin     │    │
+│  │  (Authenticate) │                │  Created         │    │
+│  └─────────────────┘                └──────────────────┘    │
+│      │ Success                                              │
+│      ▼                                                      │
+│  ┌─────────────────┐                                        │
+│  │  MainWindow     │ ◄── Role-based UI applied              │
+│  │  (Dashboard)    │                                        │
+│  └─────────────────┘                                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Role-Based Access Control (NEW)
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Role Permissions                          │
+├─────────────────────────────────────────────────────────────┤
+│  Feature              │  Admin  │  Operator                 │
+│  ─────────────────────┼─────────┼───────────                │
+│  Camera Monitoring    │   ✅    │    ✅                     │
+│  Event Logs           │   ✅    │    ✅                     │
+│  Change Password      │   ✅    │    ✅                     │
+│  Settings             │   ✅    │    ❌                     │
+│  User Management      │   ✅    │    ❌                     │
+│  Face Enrollment      │   ✅    │    ❌                     │
+└─────────────────────────────────────────────────────────────┘
+
+Implementation: sidebar.set_user_info(username, role)
+  - Hides buttons based on role
+  - Admin sees all, Operator sees limited
+```
 
 ## Refactoring targets
 - Consolidate all database operations into `DatabaseManager` class (currently scattered/helper-based).
@@ -186,11 +238,23 @@ CameraManager
 
 ## Database Schema
 ```sql
--- users: Basic identity
+-- users: Basic identity (for face recognition)
 CREATE TABLE users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- app_users: Application login accounts (NEW)
+CREATE TABLE app_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    salt TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'operator',  -- 'admin' or 'operator'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    failed_attempts INTEGER DEFAULT 0,
+    locked_until TIMESTAMP
 );
 
 -- face_encodings: 128-dim vectors from dlib
@@ -241,4 +305,35 @@ BLOB → pickle.loads() → numpy.ndarray (128,)
 ```
 Live encoding → face_recognition.face_distance(known, live)
     → distance float → if < 0.6: MATCH
+```
+
+### User Authentication Flow (NEW)
+```
+Login Request → AuthManager.login(username, password)
+    │
+    ├── Check account exists
+    ├── Check account not locked
+    ├── Verify password (SHA-256 + salt)
+    │
+    ├── Success: Create session, reset failed_attempts
+    └── Failure: Increment failed_attempts, lock if >= 3
+```
+
+### Password Hashing (NEW)
+```
+Password + Random Salt → SHA-256 → password_hash
+Storage: (password_hash, salt) in app_users table
+Verification: SHA-256(input + stored_salt) == stored_hash
+```
+
+### Session Management (NEW)
+```
+AuthManager (Singleton)
+├── _current_user: UserSession | None
+├── _session_start: datetime
+├── login() → creates session
+├── logout() → clears session, emits signal
+├── is_logged_in() → bool
+├── get_current_user() → UserSession
+└── check_session_timeout() → auto-logout if expired
 ```

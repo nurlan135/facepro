@@ -2,8 +2,9 @@
 FacePro Video Widget Module
 Video stream göstərmək üçün custom PyQt6 widget.
 """
+from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 # Optional imports for OpenCV and NumPy
 try:
@@ -14,6 +15,9 @@ except ImportError:
     CV2_AVAILABLE = False
     cv2 = None
     np = None
+
+if TYPE_CHECKING:
+    import numpy as np
 
 from PyQt6.QtWidgets import QLabel, QSizePolicy, QWidget, QVBoxLayout
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer

@@ -59,3 +59,35 @@ The AI processing must follow this sequential logic to save CPU/RAM:
 ## 4. Error Handling
 * **RTSP Failures:** Do not crash. Log error, show "Reconnecting..." overlay on UI, and retry indefinitely.
 * **Model Loading:** If GPU is missing, silently fallback to CPU mode.
+
+## 5. User Authentication System
+
+### 5.1. Authentication Flow
+1. **First Launch:** If no users exist in `app_users` table, show SetupWizard to create first admin account.
+2. **Normal Launch:** Show LoginDialog before main dashboard.
+3. **Session Management:** Track login time, auto-logout after configurable timeout (default 30 min).
+
+### 5.2. Password Security
+* **Hashing:** SHA-256 with unique salt per user
+* **Storage:** `password_hash` and `salt` stored separately in database
+* **Verification:** `SHA256(input_password + stored_salt) == stored_hash`
+
+### 5.3. Account Lockout
+* **Trigger:** 3 consecutive failed login attempts
+* **Duration:** 5 minutes
+* **Reset:** Automatic after lockout period expires
+
+### 5.4. Role-Based Access Control (RBAC)
+| Feature | Admin | Operator |
+|---------|-------|----------|
+| Camera Monitoring | ✅ | ✅ |
+| Event Logs | ✅ | ✅ |
+| Change Own Password | ✅ | ✅ |
+| Settings | ✅ | ❌ |
+| User Management | ✅ | ❌ |
+| Face Enrollment | ✅ | ❌ |
+
+### 5.5. Session Timeout
+* **Default:** 30 minutes of inactivity
+* **Configurable:** 5-120 minutes (Admin only)
+* **Action:** Auto-logout, stop camera streams, return to login screen
