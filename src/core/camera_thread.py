@@ -16,6 +16,10 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
+# FFMPEG h264 xəta mesajlarını gizlət
+os.environ["OPENCV_LOG_LEVEL"] = "SILENT"
+os.environ["OPENCV_FFMPEG_LOGLEVEL"] = "-8"  # AV_LOG_QUIET
+
 from src.utils.logger import get_logger
 
 logger = get_logger()
@@ -63,7 +67,7 @@ class CameraWorker(QThread):
         self._frame_interval = 1.0 / config.target_fps
         self._last_frame_time = 0
         self._consecutive_failures = 0
-        self._max_failures = 30  # 30 ardıcıl uğursuzluqdan sonra reconnect
+        self._max_failures = 100  # 100 ardıcıl uğursuzluqdan sonra reconnect (h264 xətalarına dözümlü)
         
         logger.info(f"CameraWorker created: {config.name} -> {config.source}")
     
@@ -75,6 +79,7 @@ class CameraWorker(QThread):
     def run(self):
         """Thread-in əsas döngüsü."""
         self._running = True
+        self._last_valid_frame = None
         logger.info(f"Camera thread started: {self.config.name}")
         
         while self._running:
@@ -99,10 +104,19 @@ class CameraWorker(QThread):
                 
                 ret, frame = self._cap.read()
                 
-                if ret and frame is not None:
-                    self._consecutive_failures = 0
-                    self._last_frame_time = current_time
-                    self.frame_ready.emit(frame, self.config.name)
+                if ret and frame is not None and frame.size > 0:
+                    # Frame-in valid olduğunu yoxla (tamamilə qara və ya boz deyil)
+                    # Hikvision bəzən corrupt frame-lər göndərir
+                    if self._is_valid_frame(frame):
+                        self._consecutive_failures = 0
+                        self._last_frame_time = current_time
+                        self._last_valid_frame = frame.copy()
+                        self.frame_ready.emit(frame, self.config.name)
+                    else:
+                        # Corrupt frame - son valid frame-i istifadə et
+                        self._consecutive_failures += 1
+                        if self._last_valid_frame is not None and self._consecutive_failures < 10:
+                            self.frame_ready.emit(self._last_valid_frame, self.config.name)
                 else:
                     self._handle_read_failure()
                     
@@ -114,6 +128,29 @@ class CameraWorker(QThread):
         self._disconnect()
         logger.info(f"Camera thread stopped: {self.config.name}")
     
+    def _is_valid_frame(self, frame: np.ndarray) -> bool:
+        """
+        Frame-in valid olduğunu yoxlayır.
+        Corrupt və ya boş frame-ləri aşkarlayır.
+        """
+        if frame is None or frame.size == 0:
+            return False
+        
+        # Frame ölçüsü çox kiçikdirsə
+        if frame.shape[0] < 100 or frame.shape[1] < 100:
+            return False
+        
+        # Tamamilə eyni rəngdirsə (qara, boz, yaşıl)
+        # Standart sapma çox aşağıdırsa, frame corrupt ola bilər
+        try:
+            std = np.std(frame)
+            if std < 5:  # Demək olar ki, eyni rəng
+                return False
+        except:
+            return False
+        
+        return True
+    
     def _connect(self):
         """Kameraya qoşulmağa cəhd edir."""
         logger.info(f"Connecting to camera: {self.config.source}")
@@ -123,32 +160,77 @@ class CameraWorker(QThread):
             # Source tip yoxlaması (webcam vs RTSP)
             if isinstance(self.config.source, int) or self.config.source.isdigit():
                 source = int(self.config.source)
+                is_network_stream = False
             else:
                 source = self.config.source
+                is_network_stream = source.startswith('rtsp') or source.startswith('http')
+            
+            # RTSP/HTTP stream üçün FFmpeg parametrlərini ayarla
+            if is_network_stream:
+                # Hikvision DVR üçün optimallaşdırılmış parametrlər
+                os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
+                    "rtsp_transport;tcp|"
+                    "buffer_size;1024000|"
+                    "max_delay;500000|"
+                    "stimeout;5000000|"
+                    "reorder_queue_size;0|"
+                    "fflags;discardcorrupt+nobuffer"
+                )
             
             # VideoCapture yaratmaq
-            self._cap = cv2.VideoCapture(source)
+            if is_network_stream:
+                # Əvvəlcə FFMPEG backend ilə cəhd et
+                self._cap = cv2.VideoCapture(source, cv2.CAP_FFMPEG)
+                
+                # Əgər açılmadısa, default backend ilə cəhd et
+                if not self._cap.isOpened():
+                    logger.warning(f"FFMPEG backend failed, trying default: {self.config.name}")
+                    self._cap = cv2.VideoCapture(source)
+            else:
+                self._cap = cv2.VideoCapture(source)
             
-            # RTSP üçün timeout ayarla
-            if isinstance(source, str) and source.startswith('rtsp'):
+            # RTSP/HTTP üçün timeout ayarla
+            if is_network_stream:
                 self._cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, self.config.timeout * 1000)
                 self._cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, self.config.timeout * 1000)
+                self._cap.set(cv2.CAP_PROP_BUFFERSIZE, 3)
             
             if self._cap.isOpened():
+                # Stream stabilləşməsi üçün ilk frame-ləri oxu
+                # Hikvision DVR-lar üçün daha çox frame lazımdır
+                warmup_frames = 30 if is_network_stream else 5
+                valid_frame_count = 0
+                
+                for i in range(warmup_frames):
+                    ret, frame = self._cap.read()
+                    if ret and frame is not None and frame.size > 0:
+                        valid_frame_count += 1
+                    time.sleep(0.05)  # 50ms gözlə
+                
+                logger.info(f"Warmup: {valid_frame_count}/{warmup_frames} valid frames")
+                
                 # Kamera parametrlərini oxu
                 width = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                 height = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                 fps = int(self._cap.get(cv2.CAP_PROP_FPS)) or self.config.target_fps
                 
-                logger.info(f"Camera connected: {self.config.name} ({width}x{height} @ {fps}fps)")
-                self.connection_status.emit(True, self.config.name)
-                self._consecutive_failures = 0
+                if width > 0 and height > 0:
+                    logger.info(f"Camera connected: {self.config.name} ({width}x{height} @ {fps}fps)")
+                    self.connection_status.emit(True, self.config.name)
+                    self._consecutive_failures = 0
+                else:
+                    raise Exception(f"Invalid resolution: {width}x{height}")
             else:
                 raise Exception("Failed to open video capture")
                 
         except Exception as e:
             logger.error(f"Connection failed: {e}")
             self.error_occurred.emit(str(e), self.config.name)
+            if self._cap is not None:
+                try:
+                    self._cap.release()
+                except:
+                    pass
             self._cap = None
             
             # Reconnect intervalı gözlə

@@ -76,6 +76,7 @@ class MainWindow(QMainWindow):
         self._is_running = False
         self._known_faces_count = 0 
         self._total_detections_count = 0
+        self._selected_camera_name = None  # Seçilmiş kamera adı
         
         self.setWindowTitle("FacePro - Smart Security System")
         self.resize(1366, 768)
@@ -178,15 +179,50 @@ class MainWindow(QMainWindow):
             self._start_system()
     
     def _show_camera_selector(self):
-        """Kamera seçim dialoqunu göstərir."""
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QPushButton
-        from src.ui.camera_dialogs import LocalCameraSelector, RTSPConfigDialog
+        """Kamera seçim dialoqu (Mövcud kameraları göstər və ya yeni əlavə et)."""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QPushButton, QLabel, QFrame
         
-        # Sadə seçim dialoqu
         select_dialog = QDialog(self)
-        select_dialog.setWindowTitle("Kamera Növü Seçin")
-        select_dialog.setFixedSize(300, 150)
+        select_dialog.setWindowTitle("Kamera Seçimi")
+        select_dialog.setMinimumWidth(350)
         layout = QVBoxLayout(select_dialog)
+        layout.setSpacing(10)
+        
+        # 1. Mövcud Kameralar Siyahısı
+        if self._cameras_config:
+            lbl = QLabel("Mövcud Kameralar:")
+            lbl.setStyleSheet("font-weight: bold; color: #a0a0a0;")
+            layout.addWidget(lbl)
+            
+            for cam in self._cameras_config:
+                cam_name = cam.get('name', 'Kamera')
+                btn = QPushButton(f"📹 {cam_name}")
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        text-align: left;
+                        padding: 8px 15px;
+                        background-color: {COLORS['surface']};
+                        border: 1px solid {COLORS['border']};
+                        border-radius: 5px;
+                    }}
+                    QPushButton:hover {{
+                        border-color: {COLORS['primary']};
+                    }}
+                """)
+                # Lambda capture fix: default argument v=cam_name
+                btn.clicked.connect(lambda checked, n=cam_name: self._select_existing_camera(select_dialog, n))
+                layout.addWidget(btn)
+                
+            line = QFrame()
+            line.setFrameShape(QFrame.Shape.HLine)
+            line.setFrameShadow(QFrame.Shadow.Sunken)
+            line.setStyleSheet(f"background-color: {COLORS['border']}; margin: 10px 0;")
+            layout.addWidget(line)
+        
+        # 2. Yeni Kamera Əlavə Et
+        lbl_new = QLabel("Yeni Kamera Əlavə Et:")
+        lbl_new.setStyleSheet("font-weight: bold; color: #a0a0a0;")
+        layout.addWidget(lbl_new)
         
         local_btn = QPushButton("📷 Lokal Kamera (Webcam)")
         local_btn.clicked.connect(lambda: self._select_local_camera(select_dialog))
@@ -196,7 +232,19 @@ class MainWindow(QMainWindow):
         rtsp_btn.clicked.connect(lambda: self._select_rtsp_camera(select_dialog))
         layout.addWidget(rtsp_btn)
         
+        # Close button
+        cancel_btn = QPushButton("Ləğv Et")
+        cancel_btn.clicked.connect(select_dialog.reject)
+        layout.addWidget(cancel_btn)
+        
         select_dialog.exec()
+
+    def _select_existing_camera(self, dialog, name):
+        """Mövcud kameranı seç."""
+        dialog.accept()
+        self._selected_camera_name = name  # Seçilmiş kameranı yadda saxla
+        self.camera_page.set_camera_status(name)
+        QMessageBox.information(self, "Kamera Seçildi", f"'{name}' seçildi.\n'Başlat' düyməsini sıxaraq izləməyə başlaya bilərsiniz.")
     
     def _select_local_camera(self, parent_dialog):
         """Lokal kamera seçimi."""
@@ -228,8 +276,20 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, tr('msg_error'), "No cameras configured!")
             return
         
+        # Hansi kameraları başlatmaq lazımdır?
+        if self._selected_camera_name:
+            # Yalnız seçilmiş kameranı başlat
+            cameras_to_start = [c for c in self._cameras_config if c['name'] == self._selected_camera_name]
+        else:
+            # Hamısını başlat
+            cameras_to_start = self._cameras_config
+        
+        if not cameras_to_start:
+            QMessageBox.warning(self, tr('msg_error'), "Seçilmiş kamera tapılmadı!")
+            return
+        
         # Setup cameras
-        for cam_cfg in self._cameras_config:
+        for cam_cfg in cameras_to_start:
             config = CameraConfig(
                 name=cam_cfg['name'],
                 source=cam_cfg['source'],

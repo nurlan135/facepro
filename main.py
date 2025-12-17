@@ -15,6 +15,20 @@ Bu entry point lisenziya yoxlaması ilə başlayır.
 import sys
 import os
 
+# FFMPEG/OpenCV h264 xəta mesajlarını gizlət (cv2 import-dan ƏVVƏL!)
+os.environ["OPENCV_LOG_LEVEL"] = "SILENT"
+os.environ["OPENCV_FFMPEG_LOGLEVEL"] = "-8"  # AV_LOG_QUIET
+os.environ["OPENCV_VIDEOIO_DEBUG"] = "0"
+
+# Stderr-i gizlətmək üçün (FFMPEG h264 xətaları)
+# Windows-da devnull-a yönləndir
+if sys.platform == 'win32':
+    import ctypes
+    # Hide FFMPEG console output
+    kernel32 = ctypes.windll.kernel32
+    # Disable stderr temporarily for FFMPEG
+    os.environ["FFREPORT"] = "level=quiet"
+
 # Add project root to path
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, PROJECT_ROOT)

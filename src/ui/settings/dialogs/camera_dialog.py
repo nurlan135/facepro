@@ -203,9 +203,47 @@ class CameraDialog(QDialog):
         self.name_edit.setText(self._camera_data.get('name', ''))
         
         source = self._camera_data.get('source', '')
-        if source.startswith('rtsp'):
+        if source.startswith('rtsp') or source.startswith('http'):
             self.type_combo.setCurrentIndex(0)
             self.url_edit.setText(source)
+            
+            # URL-dən məlumatları çıxararaq form-u doldur
+            try:
+                # remove prefix
+                if '://' in source:
+                    s = source.split('://', 1)[1]
+                else:
+                    s = source
+                
+                # Auth
+                if '@' in s:
+                    auth, rest = s.split('@', 1)
+                    if ':' in auth:
+                        user, pwd = auth.split(':', 1)
+                        self.username_edit.setText(user)
+                        self.password_edit.setText(pwd)
+                    else:
+                        self.username_edit.setText(auth)
+                else:
+                    rest = s
+                
+                # Host/Port/Path
+                if '/' in rest:
+                    host_part = rest.split('/', 1)[0]
+                else:
+                    host_part = rest
+                
+                if ':' in host_part:
+                    ip, port = host_part.split(':', 1)
+                    self.ip_edit.setText(ip)
+                    try:
+                        self.port_spin.setValue(int(port))
+                    except:
+                        pass
+                else:
+                    self.ip_edit.setText(host_part)
+            except Exception as e:
+                print(f"Error parsing URL: {e}")
         elif source.isdigit():
             self.type_combo.setCurrentIndex(1)
             self.webcam_id_spin.setValue(int(source))

@@ -14,7 +14,7 @@
     "ai": {
         "motion_threshold": 25,
         "face_confidence_threshold": 0.6,
-        "reid_confidence_threshold": 0.75,
+        "reid_confidence_threshold": 0.65,
         "detection_classes": [
             "person",
             "cat",
@@ -23,7 +23,7 @@
     },
     "gait": {
         "enabled": true,
-        "threshold": 0.70,
+        "threshold": 0.65,
         "sequence_length": 30
     },
     "storage": {

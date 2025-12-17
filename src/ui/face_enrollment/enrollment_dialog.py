@@ -314,6 +314,8 @@ class FaceEnrollmentDialog(QDialog):
             QMessageBox.critical(self, "Error", f"Webcam capture failed: {e}")
     
     def _save_face(self):
+        from PyQt6.QtWidgets import QApplication
+        
         name = self.name_edit.text().strip()
         if not name:
             QMessageBox.warning(self, "Error", tr('enroll_error_no_name'))
@@ -325,18 +327,33 @@ class FaceEnrollmentDialog(QDialog):
             return
         
         try:
+            # Disable button and show progress
+            self.save_btn.setEnabled(False)
+            self.save_btn.setText("Saving...")
+            self.status_label.setText("⏳ Extracting face encoding...")
+            self.status_label.setStyleSheet("color: #F6E05E;")
+            QApplication.processEvents()
+            
             if self._face_recognition is None:
                 import face_recognition
                 self._face_recognition = face_recognition
             
             rgb = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+            QApplication.processEvents()
+            
             face_encodings = self._face_recognition.face_encodings(rgb)
+            QApplication.processEvents()
             
             if not face_encodings:
                 QMessageBox.critical(self, "Error", "Could not extract face encoding.")
+                self.save_btn.setEnabled(True)
+                self.save_btn.setText(tr('enroll_btn_save'))
                 return
             
             encoding = face_encodings[0]
+            
+            self.status_label.setText("⏳ Saving to database...")
+            QApplication.processEvents()
             
             ensure_dir(FACES_DIR)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -364,19 +381,22 @@ class FaceEnrollmentDialog(QDialog):
         except ImportError:
             QMessageBox.critical(self, "Error", 
                 "face_recognition library is not installed.\nPlease run: pip install face_recognition")
+            self.save_btn.setEnabled(True)
+            self.save_btn.setText(tr('enroll_btn_save'))
         except Exception as e:
             logger.error(f"Failed to save face: {e}")
             QMessageBox.critical(self, "Error", f"Failed to save face: {e}")
+            self.save_btn.setEnabled(True)
+            self.save_btn.setText(tr('enroll_btn_save'))
     
     def _save_to_database(self, name: str, encoding: np.ndarray, image_path: str):
         import sqlite3
         from src.utils.helpers import get_db_path
-        import pickle
         
         db_path = get_db_path()
         
         try:
-            conn = sqlite3.connect(db_path)
+            conn = sqlite3.connect(db_path, timeout=10)
             cursor = conn.cursor()
             
             cursor.execute("SELECT id FROM users WHERE name = ?", (name,))
@@ -384,15 +404,20 @@ class FaceEnrollmentDialog(QDialog):
             
             if existing:
                 user_id = existing[0]
+                logger.info(f"Adding face to existing user: {name} (id={user_id})")
             else:
                 cursor.execute("INSERT INTO users (name, created_at) VALUES (?, datetime('now'))", (name,))
                 user_id = cursor.lastrowid
+                logger.info(f"Created new user: {name} (id={user_id})")
             
-            encoding_blob = pickle.dumps(encoding)
+            # Safe numpy serialization (no pickle for security)
+            # face_recognition returns float64 128-dim vectors
+            encoding_blob = encoding.astype(np.float64).tobytes()
             cursor.execute("INSERT INTO face_encodings (user_id, encoding) VALUES (?, ?)", (user_id, encoding_blob))
             
             conn.commit()
             conn.close()
+            logger.info(f"Face encoding saved for user: {name}")
             
         except Exception as e:
             logger.error(f"Database save failed: {e}")
