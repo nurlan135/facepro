@@ -62,7 +62,9 @@ FacePro/
 │   ├── PRD.md           # Product requirements
 │   ├── TECH_SPEC.md     # Technical specification
 │   ├── LICENSE_SPEC.md  # License system spec
-│   └── database_schema.sql
+│   ├── database_schema.sql
+│   ├── directory_structure.md
+│   └── HANDOVER_OVERVIEW.md  # NEW - Comprehensive handover doc (581 lines)
 │
 ├── memory-bank/         # AI context preservation
 │   ├── projectbrief.md

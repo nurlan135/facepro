@@ -17,7 +17,10 @@ from src.ui.video_widget import VideoGrid
 class CameraPage(QWidget):
     """Camera Page with video grid and controls."""
     
-    toggle_system_clicked = pyqtSignal()
+    select_camera_clicked = pyqtSignal()  # Kamera seçim dialoqu
+    start_clicked = pyqtSignal()  # Sistemi başlat
+    stop_clicked = pyqtSignal()  # Sistemi dayandır
+    toggle_system_clicked = pyqtSignal()  # Legacy - köhnə uyğunluq üçün
     mode_changed = pyqtSignal(str)  # 'security', 'baby', 'object'
     
     def __init__(self, parent=None):
@@ -280,18 +283,18 @@ class CameraPage(QWidget):
         self.mode_changed.emit(self._current_mode)
     
     def _on_select_camera(self):
-        """Kamera seçimi."""
-        self.toggle_system_clicked.emit()
+        """Kamera seçimi dialoqu."""
+        self.select_camera_clicked.emit()
     
     def _on_start(self):
         """Sistemi başlat."""
         if not self._is_running:
-            self.toggle_system_clicked.emit()
+            self.start_clicked.emit()
     
     def _on_stop(self):
         """Sistemi dayandır."""
         if self._is_running:
-            self.toggle_system_clicked.emit()
+            self.stop_clicked.emit()
     
     def set_camera_status(self, camera_url: str):
         """Kamera statusunu yenilə."""

@@ -147,7 +147,9 @@ class MainWindow(QMainWindow):
         
         # Page 1: Camera View
         self.camera_page = CameraPage()
-        self.camera_page.toggle_system_clicked.connect(self._toggle_running)
+        self.camera_page.select_camera_clicked.connect(self._show_camera_selector)
+        self.camera_page.start_clicked.connect(self._start_system)
+        self.camera_page.stop_clicked.connect(self._stop_system)
         self.pages.addWidget(self.camera_page)
         
         # Page 2: Logs View
@@ -174,6 +176,51 @@ class MainWindow(QMainWindow):
             self._stop_system()
         else:
             self._start_system()
+    
+    def _show_camera_selector(self):
+        """Kamera seçim dialoqunu göstərir."""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QPushButton
+        from src.ui.camera_dialogs import LocalCameraSelector, RTSPConfigDialog
+        
+        # Sadə seçim dialoqu
+        select_dialog = QDialog(self)
+        select_dialog.setWindowTitle("Kamera Növü Seçin")
+        select_dialog.setFixedSize(300, 150)
+        layout = QVBoxLayout(select_dialog)
+        
+        local_btn = QPushButton("📷 Lokal Kamera (Webcam)")
+        local_btn.clicked.connect(lambda: self._select_local_camera(select_dialog))
+        layout.addWidget(local_btn)
+        
+        rtsp_btn = QPushButton("🌐 RTSP/IP Kamera")
+        rtsp_btn.clicked.connect(lambda: self._select_rtsp_camera(select_dialog))
+        layout.addWidget(rtsp_btn)
+        
+        select_dialog.exec()
+    
+    def _select_local_camera(self, parent_dialog):
+        """Lokal kamera seçimi."""
+        parent_dialog.close()
+        from src.ui.camera_dialogs import LocalCameraSelector
+        
+        dialog = LocalCameraSelector(parent=self)
+        if dialog.exec() == dialog.DialogCode.Accepted:
+            camera_data = dialog.get_camera_data()
+            if camera_data:
+                self._cameras_config.append(camera_data)
+                self.camera_page.set_camera_status(camera_data.get('name', ''))
+    
+    def _select_rtsp_camera(self, parent_dialog):
+        """RTSP kamera seçimi."""
+        parent_dialog.close()
+        from src.ui.camera_dialogs import RTSPConfigDialog
+        
+        dialog = RTSPConfigDialog(parent=self)
+        if dialog.exec() == dialog.DialogCode.Accepted:
+            camera_data = dialog.get_camera_data()
+            if camera_data:
+                self._cameras_config.append(camera_data)
+                self.camera_page.set_camera_status(camera_data.get('name', ''))
 
     def _start_system(self):
         """Sistemi başladır."""

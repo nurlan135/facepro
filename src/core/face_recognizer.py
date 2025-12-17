@@ -148,7 +148,7 @@ class FaceRecognizer:
     def load_from_database(self) -> int:
         """Database-dən bütün üzləri yükləyir."""
         import sqlite3
-        import pickle
+        import numpy as np
         
         db_path = get_db_path()
         if not os.path.exists(db_path):
@@ -169,7 +169,22 @@ class FaceRecognizer:
             
             for name, user_id, encoding_blob in cursor.fetchall():
                 try:
-                    encoding = pickle.loads(encoding_blob)
+                    # Safe deserialization only - pickle removed for security
+                    # Face encodings are 128-dim float64 vectors from face_recognition library
+                    expected_size_f64 = 128 * 8  # float64 = 8 bytes (face_recognition default)
+                    expected_size_f32 = 128 * 4  # float32 = 4 bytes (our serialization)
+                    
+                    if len(encoding_blob) == expected_size_f32:
+                        encoding = np.frombuffer(encoding_blob, dtype=np.float32).copy()
+                    elif len(encoding_blob) == expected_size_f64:
+                        encoding = np.frombuffer(encoding_blob, dtype=np.float64).copy()
+                    else:
+                        logger.warning(
+                            f"Skipping encoding for {name}: invalid blob size {len(encoding_blob)}. "
+                            f"Expected {expected_size_f32} or {expected_size_f64} bytes. "
+                            f"If this is legacy pickle data, run the migration script."
+                        )
+                        continue
                     
                     if name not in self._known_encodings:
                         self._known_encodings[name] = []

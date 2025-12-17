@@ -15,10 +15,52 @@ import os
 from typing import Optional, Tuple
 
 # =====================================================================
-# SECRET SALT - Bu dəyər gizli saxlanılmalıdır!
-# Produksiyada bu dəyəri dəyişdirin və obfuscate edin.
+# SECRET SALT - Loaded securely from environment variable
+# SECURITY: Never hardcode the salt in source code!
+#
+# To set the salt:
+#   Windows: setx FACEPRO_LICENSE_SALT "your_secret_salt_here"
+#   Linux:   export FACEPRO_LICENSE_SALT="your_secret_salt_here"
+#
+# For production, set this in the deployment environment.
 # =====================================================================
-_SECRET_SALT = "FaceGuard_v1_$uper$ecure_2025!"
+def _get_license_salt() -> str:
+    """
+    Get the license salt from environment variable.
+    
+    Security Note: The salt is NOT hardcoded to prevent unauthorized
+    license key generation by anyone with source code access.
+    
+    Returns:
+        The license salt from environment, or raises an error if not set.
+    """
+    salt = os.environ.get('FACEPRO_LICENSE_SALT')
+    if salt:
+        return salt
+    
+    # Fallback: Check for salt file in secure location (for PyInstaller builds)
+    # This file should NOT be in version control
+    salt_file_locations = [
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.license_salt'),
+        os.path.join(os.path.expanduser('~'), '.facepro_license_salt'),
+    ]
+    
+    for salt_file in salt_file_locations:
+        if os.path.exists(salt_file):
+            try:
+                with open(salt_file, 'r', encoding='utf-8') as f:
+                    salt = f.read().strip()
+                    if salt:
+                        return salt
+            except Exception:
+                pass
+    
+    # If no salt is found, raise an error with clear instructions
+    raise RuntimeError(
+        "License salt not configured!\n"
+        "Set FACEPRO_LICENSE_SALT environment variable or create .license_salt file.\n"
+        "Contact administrator for the correct salt value."
+    )
 
 # License file location
 _LICENSE_FILE = ".license"
@@ -120,17 +162,21 @@ def get_machine_id() -> str:
     return formatted_id
 
 
-def generate_license_key(machine_id: str, salt: str = _SECRET_SALT) -> str:
+def generate_license_key(machine_id: str, salt: Optional[str] = None) -> str:
     """
     Machine ID üçün lisenziya açarı yaradır.
     
     Args:
         machine_id: Maşın ID-si (XXXX-XXXX-XXXX-XXXX formatında)
-        salt: Gizli salt (default: internal salt)
+        salt: Gizli salt (default: environment variable-dan yüklənir)
         
     Returns:
-        Lisenziya açarı (20 simvol, Base32)
+        Lisenziya açarı (XXXX-XXXX-XXXX-XXXX-XXXX formatında)
     """
+    # Salt-ı al (parametr verilməyibsə environment-dan)
+    if salt is None:
+        salt = _get_license_salt()
+    
     # Machine ID + Salt
     raw_string = f"{machine_id}{salt}"
     
@@ -141,9 +187,12 @@ def generate_license_key(machine_id: str, salt: str = _SECRET_SALT) -> str:
     b32_encoded = base64.b32encode(hash_bytes).decode('utf-8')
     
     # İlk 20 simvol
-    license_key = b32_encoded[:20]
+    raw_key = b32_encoded[:20]
     
-    return license_key
+    # Format: XXXX-XXXX-XXXX-XXXX-XXXX
+    formatted_key = "-".join(raw_key[i:i+4] for i in range(0, len(raw_key), 4))
+    
+    return formatted_key
 
 
 def validate_license_key(input_key: str, machine_id: Optional[str] = None) -> bool:
@@ -162,8 +211,11 @@ def validate_license_key(input_key: str, machine_id: Optional[str] = None) -> bo
     
     expected_key = generate_license_key(machine_id)
     
-    # Case-insensitive müqayisə
-    return input_key.upper().strip() == expected_key.upper()
+    # Normalize keys (remove dashes/spaces)
+    clean_input = input_key.replace("-", "").replace(" ", "").strip().upper()
+    clean_expected = expected_key.replace("-", "").replace(" ", "").strip().upper()
+    
+    return clean_input == clean_expected
 
 
 def get_license_file_path() -> str:
@@ -240,6 +292,7 @@ def load_license() -> Optional[str]:
         return None
 
 
+
 def check_license() -> Tuple[bool, str]:
     """
     Sistemin lisenziyalı olub-olmadığını yoxlayır.
@@ -251,12 +304,12 @@ def check_license() -> Tuple[bool, str]:
     saved_key = load_license()
     
     if saved_key is None:
-        return False, f"No license found. Machine ID: {machine_id}"
+        return False, f"Lisenziya tapılmadı. Cihaz ID: {machine_id}"
     
     if validate_license_key(saved_key, machine_id):
-        return True, "License valid"
+        return True, "Lisenziya etibarlıdır"
     else:
-        return False, f"Invalid license. Machine ID: {machine_id}"
+        return False, f"Yanlış lisenziya. Cihaz ID: {machine_id}"
 
 
 def activate_license(input_key: str) -> Tuple[bool, str]:
@@ -273,11 +326,11 @@ def activate_license(input_key: str) -> Tuple[bool, str]:
     
     if validate_license_key(input_key, machine_id):
         if save_license(input_key):
-            return True, "License activated successfully!"
+            return True, "Lisenziya uğurla aktivləşdirildi!"
         else:
-            return False, "Failed to save license file."
+            return False, "Lisenziya faylı yadda saxlanıla bilmədi."
     else:
-        return False, f"Invalid license key for this machine.\nMachine ID: {machine_id}"
+        return False, f"Bu cihaz üçün yanlış lisenziya açarı.\nCihaz ID: {machine_id}"
 
 
 def delete_license() -> bool:

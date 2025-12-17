@@ -13,10 +13,14 @@ build/
 
 # FacePro specific
 .license
+.license_salt
 *.db
 data/faces/*
 data/logs/*
 models/*
+
+# Sensitive configuration (use settings.template.json as reference)
+config/settings.json
 
 # IDE
 .vscode/

@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Tuple, List, Dict
 from dataclasses import dataclass
 
+import bcrypt
 from PyQt6.QtCore import QObject, pyqtSignal
 
 
@@ -104,39 +105,51 @@ class AuthManager(QObject):
     
     def hash_password(self, password: str, salt: Optional[bytes] = None) -> Tuple[str, str]:
         """
-        Hash password with SHA-256 and salt.
+        Hash password with bcrypt (secure, adaptive hashing).
         
         Args:
             password: Plain text password
-            salt: Optional salt bytes (generated if not provided)
+            salt: Optional salt bytes (ignored for bcrypt, kept for API compatibility)
             
         Returns:
-            Tuple of (password_hash, salt) as hex strings
+            Tuple of (password_hash, salt_placeholder) as strings
+            Note: bcrypt includes salt in hash, so salt field is a placeholder
         """
-        if salt is None:
-            salt = secrets.token_bytes(32)
+        # bcrypt automatically generates and embeds salt in hash
+        password_bytes = password.encode('utf-8')
+        password_hash = bcrypt.hashpw(password_bytes, bcrypt.gensalt(rounds=12))
         
-        # Combine password and salt, then hash
-        salted_password = password.encode('utf-8') + salt
-        password_hash = hashlib.sha256(salted_password).hexdigest()
-        
-        return password_hash, salt.hex()
+        # Return hash as string, salt placeholder for DB compatibility
+        return password_hash.decode('utf-8'), 'bcrypt'
     
     def verify_password(self, password: str, stored_hash: str, stored_salt: str) -> bool:
         """
         Verify password against stored hash.
+        Supports both bcrypt (new) and SHA-256 (legacy) for backward compatibility.
         
         Args:
             password: Plain text password to verify
-            stored_hash: Stored password hash (hex string)
-            stored_salt: Stored salt (hex string)
+            stored_hash: Stored password hash
+            stored_salt: Stored salt ("bcrypt" for new, hex for legacy)
             
         Returns:
             True if password matches, False otherwise
         """
-        salt_bytes = bytes.fromhex(stored_salt)
-        computed_hash, _ = self.hash_password(password, salt_bytes)
-        return computed_hash == stored_hash
+        try:
+            if stored_salt == 'bcrypt':
+                # New bcrypt format
+                return bcrypt.checkpw(
+                    password.encode('utf-8'),
+                    stored_hash.encode('utf-8')
+                )
+            else:
+                # Legacy SHA-256 format (for existing users)
+                salt_bytes = bytes.fromhex(stored_salt)
+                salted_password = password.encode('utf-8') + salt_bytes
+                computed_hash = hashlib.sha256(salted_password).hexdigest()
+                return computed_hash == stored_hash
+        except Exception:
+            return False
 
     # =========================================================================
     # Account Management
@@ -269,32 +282,35 @@ class AuthManager(QObject):
                 conn.close()
                 return False, "User not found"
             
-            # Build update query
-            updates = []
-            params = []
-            
-            if password is not None:
+            # Use explicit, safe queries instead of dynamic column building
+            # This prevents any SQL injection through column names
+            if password is not None and role is not None:
                 password_hash, salt = self.hash_password(password)
-                updates.append("password_hash = ?")
-                updates.append("salt = ?")
-                params.extend([password_hash, salt])
-            
-            if role is not None:
-                updates.append("role = ?")
-                params.append(role)
-            
-            params.append(user_id)
-            
-            cursor.execute(f'''
-                UPDATE app_users SET {", ".join(updates)} WHERE id = ?
-            ''', params)
+                cursor.execute('''
+                    UPDATE app_users 
+                    SET password_hash = ?, salt = ?, role = ? 
+                    WHERE id = ?
+                ''', (password_hash, salt, role, user_id))
+            elif password is not None:
+                password_hash, salt = self.hash_password(password)
+                cursor.execute('''
+                    UPDATE app_users 
+                    SET password_hash = ?, salt = ? 
+                    WHERE id = ?
+                ''', (password_hash, salt, user_id))
+            elif role is not None:
+                cursor.execute('''
+                    UPDATE app_users 
+                    SET role = ? 
+                    WHERE id = ?
+                ''', (role, user_id))
             
             conn.commit()
             conn.close()
             return True, "Account updated successfully"
             
         except Exception as e:
-            return False, f"Database error: {str(e)}"
+            return False, "An error occurred while updating the account"
     
     def delete_account(self, user_id: int) -> Tuple[bool, str]:
         """

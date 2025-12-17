@@ -120,22 +120,78 @@ QFrame[class="action_card"]:hover {{
 
 /* ===== Activity Feed ===== */
 QListWidget[class="activity_feed"] {{
-    background-color: {COLORS['bg_light']};
-    border-radius: 10px;
+    background-color: transparent;
     border: none;
-    padding: 10px;
+    outline: none;
 }}
 
 QListWidget[class="activity_feed"]::item {{
-    background-color: {COLORS['bg_medium']};
-    margin-bottom: 8px;
-    border-radius: 6px;
-    padding: 10px;
-    border: 1px solid {COLORS['border']};
+    background-color: rgba(255, 255, 255, 0.03);
+    margin-bottom: 10px;
+    border-radius: 10px;
+    padding: 5px; /* Inner padding handled by widget */
+    border: 1px solid rgba(255, 255, 255, 0.05);
 }}
 
 QListWidget[class="activity_feed"]::item:hover {{
-    border: 1px solid {COLORS['primary']};
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(59, 130, 246, 0.5);
+}}
+
+/* Activity Item Components */
+QFrame[class="activity_icon_box_success"] {{
+    background-color: rgba(46, 204, 113, 0.1);
+    border: 1px solid #2ecc71;
+    border-radius: 8px;
+}}
+QFrame[class="activity_icon_box_success"] QLabel {{
+    color: #2ecc71;
+    font-weight: bold;
+    font-size: 18px;
+}}
+
+QFrame[class="activity_icon_box_warning"] {{
+    background-color: rgba(241, 196, 15, 0.1);
+    border: 1px solid #f1c40f;
+    border-radius: 8px;
+}}
+QFrame[class="activity_icon_box_warning"] QLabel {{
+    color: #f1c40f;
+    font-weight: bold;
+    font-size: 18px;
+}}
+
+QLabel[class="activity_name"] {{
+    font-size: 15px;
+    font-weight: bold;
+    color: #FFFFFF;
+}}
+
+QLabel[class="activity_detail"] {{
+    font-size: 12px;
+    color: #A0AEC0;
+}}
+
+QLabel[class="activity_time"] {{
+    font-size: 12px;
+    color: #718096;
+    font-family: 'Consolas', monospace;
+}}
+
+/* ===== Sidebar Section Titles And Stats ===== */
+QLabel[class="sidebar_section_title"] {{
+    font-size: 12px;
+    font-weight: bold;
+    color: #4B5563; /* Muted darker gray */
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding-left: 5px;
+}}
+
+QLabel[class="stat_label"] {{
+    color: #A0AEC0;
+    font-size: 13px;
+    padding-left: 10px;
 }}
 
 /* ===== Standard Elements ===== */

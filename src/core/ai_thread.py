@@ -272,7 +272,6 @@ class AIWorker(QThread):
     def _load_reid_embeddings(self):
         """Database-dən Re-ID embedding-lərini yükləyir."""
         import sqlite3
-        import pickle
         try:
             conn = sqlite3.connect(get_db_path())
             cursor = conn.cursor()
@@ -282,7 +281,9 @@ class AIWorker(QThread):
             """)
             for row in cursor.fetchall():
                 emb_id, user_id, user_name, blob = row
-                self._reid_embeddings.append((emb_id, user_id, user_name, pickle.loads(blob)))
+                # Use safe deserialization from ReIDEngine
+                embedding = self._reid_engine.deserialize_embedding(blob)
+                self._reid_embeddings.append((emb_id, user_id, user_name, embedding))
             conn.close()
             logger.info(f"Loaded {len(self._reid_embeddings)} Re-ID embeddings")
         except Exception as e:
@@ -292,12 +293,13 @@ class AIWorker(QThread):
         """Re-ID embedding-i saxlayır."""
         try:
             import sqlite3
-            import pickle
             self._reid_embeddings.append((0, user_id, user_name, embedding))
             conn = sqlite3.connect(get_db_path())
             cursor = conn.cursor()
+            # Use safe serialization from ReIDEngine
+            blob = self._reid_engine.serialize_embedding(embedding)
             cursor.execute("INSERT INTO reid_embeddings (user_id, vector, confidence) VALUES (?, ?, ?)",
-                          (user_id, pickle.dumps(embedding), confidence))
+                          (user_id, blob, confidence))
             conn.commit()
             conn.close()
             logger.info(f"Passive Enrollment: Saved body embedding for {user_name}")

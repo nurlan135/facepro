@@ -5,7 +5,7 @@ Silhouette-based gait recognition using CNN feature extractor.
 """
 
 import os
-import pickle
+# Note: pickle removed for security - use numpy tobytes/frombuffer instead
 from typing import Optional, List, Tuple
 
 import cv2
@@ -225,11 +225,37 @@ class GaitEngine:
     
     @staticmethod
     def serialize_embedding(embedding: np.ndarray) -> bytes:
-        return pickle.dumps(embedding)
+        """Gait embedding-i SQLite BLOB üçün serialize edir (safe numpy format)."""
+        return embedding.astype(np.float32).tobytes()
     
     @staticmethod
-    def deserialize_embedding(blob: bytes) -> np.ndarray:
-        return pickle.loads(blob)
+    def deserialize_embedding(blob: bytes, expected_dim: int = 256) -> np.ndarray:
+        """
+        BLOB-dan gait embedding-i deserialize edir (safe numpy format only).
+        
+        Security Note: pickle.loads() removed to prevent arbitrary code execution.
+        Legacy pickle-format embeddings must be migrated using the migration script.
+        
+        Args:
+            blob: Raw bytes from database
+            expected_dim: Expected embedding dimension (default 256 for Gait)
+            
+        Returns:
+            Numpy array of the embedding
+            
+        Raises:
+            ValueError: If blob size doesn't match expected dimension
+        """
+        expected_size = expected_dim * 4  # float32 = 4 bytes
+        
+        if len(blob) != expected_size:
+            raise ValueError(
+                f"Invalid gait embedding blob size: {len(blob)} bytes. "
+                f"Expected {expected_size} bytes for {expected_dim}-dim float32 embedding. "
+                f"If this is legacy pickle data, run the migration script."
+            )
+        
+        return np.frombuffer(blob, dtype=np.float32).copy()
 
     def save_embedding(self, user_id: int, embedding: np.ndarray, 
                       confidence: float = 1.0, db_path: Optional[str] = None) -> Optional[int]:

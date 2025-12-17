@@ -5,7 +5,7 @@ EfficientNet-B0 feature extractor istifadə edir.
 """
 
 import os
-import pickle
+# Note: pickle removed for security - use numpy tobytes/frombuffer instead
 from typing import Optional, List, Tuple
 from dataclasses import dataclass
 
@@ -233,13 +233,38 @@ class ReIDEngine:
     
     @staticmethod
     def serialize_embedding(embedding: np.ndarray) -> bytes:
-        """Embedding-i SQLite BLOB üçün serialize edir."""
-        return pickle.dumps(embedding)
+        """Embedding-i SQLite BLOB üçün serialize edir (safe numpy format)."""
+        # Use numpy tobytes for security - no arbitrary code execution risk
+        return embedding.astype(np.float32).tobytes()
     
     @staticmethod
-    def deserialize_embedding(blob: bytes) -> np.ndarray:
-        """BLOB-dan embedding-i deserialize edir."""
-        return pickle.loads(blob)
+    def deserialize_embedding(blob: bytes, expected_dim: int = 1280) -> np.ndarray:
+        """
+        BLOB-dan embedding-i deserialize edir (safe numpy format only).
+        
+        Security Note: pickle.loads() removed to prevent arbitrary code execution.
+        Legacy pickle-format embeddings must be migrated using the migration script.
+        
+        Args:
+            blob: Raw bytes from database
+            expected_dim: Expected embedding dimension (default 1280 for EfficientNet-B0)
+            
+        Returns:
+            Numpy array of the embedding
+            
+        Raises:
+            ValueError: If blob size doesn't match expected dimension
+        """
+        expected_size = expected_dim * 4  # float32 = 4 bytes
+        
+        if len(blob) != expected_size:
+            raise ValueError(
+                f"Invalid embedding blob size: {len(blob)} bytes. "
+                f"Expected {expected_size} bytes for {expected_dim}-dim float32 embedding. "
+                f"If this is legacy pickle data, run the migration script."
+            )
+        
+        return np.frombuffer(blob, dtype=np.float32).copy()
 
 
 # Singleton instance

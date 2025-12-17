@@ -120,9 +120,22 @@ Implementation: sidebar.set_user_info(username, role)
   - Admin sees all, Operator sees limited
 ```
 
-## Refactoring targets
+## Refactoring Targets (from Handover Audit)
 - Consolidate all database operations into `DatabaseManager` class (currently scattered/helper-based).
 - Move UI-specific business logic (like enrollment) fully into Controllers or Services.
+- **Security:** Move license salt to environment variable
+- **Security:** Migrate password hashing from SHA-256 to bcrypt
+- **Security:** Replace pickle with numpy serialization for biometric data
+- **Security:** Implement SQLCipher for database encryption
+
+## Documentation
+- **Handover Document:** `docs/HANDOVER_OVERVIEW.md` (581 lines)
+  - Complete system architecture
+  - Module breakdown with line counts
+  - Third-party integration analysis
+  - Security audit (11 issues identified)
+  - Developer onboarding guide
+  - Priority action items
 
 ## Key Design Patterns
 

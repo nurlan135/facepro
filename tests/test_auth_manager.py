@@ -74,26 +74,31 @@ class TestAuthManagerSetup:
 
 
 class TestPasswordHashing(TestAuthManagerSetup):
-    """Tests for password hashing functionality (Task 1.2)."""
+    """Tests for password hashing functionality (Task 1.2) - now using bcrypt."""
     
     def test_hash_password_returns_hash_and_salt(self):
-        """Test that hash_password returns both hash and salt."""
+        """Test that hash_password returns both hash and salt placeholder."""
         password = "testpassword123"
         hash_result, salt = self.auth.hash_password(password)
         
         assert hash_result is not None
         assert salt is not None
-        assert len(hash_result) == 64  # SHA-256 hex length
-        assert len(salt) == 64  # 32 bytes as hex
+        # bcrypt hash starts with $2b$ and is ~60 chars
+        assert hash_result.startswith('$2b$')
+        assert len(hash_result) == 60
+        # Salt is now a placeholder for bcrypt
+        assert salt == 'bcrypt'
     
     def test_hash_password_different_salts_produce_different_hashes(self):
-        """Test that same password with different salts produces different hashes."""
+        """Test that same password produces different hashes (bcrypt auto-generates salt)."""
         password = "testpassword123"
         hash1, salt1 = self.auth.hash_password(password)
         hash2, salt2 = self.auth.hash_password(password)
         
-        assert salt1 != salt2
+        # With bcrypt, each hash is unique even for same password
         assert hash1 != hash2
+        # Salt placeholder is same
+        assert salt1 == salt2 == 'bcrypt'
     
     def test_verify_password_correct(self):
         """Test password verification with correct password."""
@@ -110,16 +115,19 @@ class TestPasswordHashing(TestAuthManagerSetup):
         assert self.auth.verify_password("wrongpassword", hash_result, salt) is False
     
     def test_hash_password_with_provided_salt(self):
-        """Test that providing same salt produces same hash."""
+        """Test that bcrypt ignores provided salt (it generates its own)."""
         password = "testpassword123"
         hash1, salt1 = self.auth.hash_password(password)
         
-        # Use same salt
-        salt_bytes = bytes.fromhex(salt1)
-        hash2, salt2 = self.auth.hash_password(password, salt_bytes)
+        # bcrypt ignores provided salt, always generates new
+        import secrets
+        provided_salt = secrets.token_bytes(32)
+        hash2, salt2 = self.auth.hash_password(password, provided_salt)
         
-        assert hash1 == hash2
-        assert salt1 == salt2
+        # Hashes should be different (bcrypt generates unique salt each time)
+        assert hash1 != hash2
+        # Salt placeholder should be same
+        assert salt1 == salt2 == 'bcrypt'
 
 
 class TestAccountCreation(TestAuthManagerSetup):
@@ -488,7 +496,7 @@ class TestPasswordChange(TestAuthManagerSetup):
         assert "not found" in message.lower()
     
     def test_change_password_updates_hash_and_salt(self):
-        """Test that password change updates both hash and salt."""
+        """Test that password change updates the hash (salt placeholder stays same with bcrypt)."""
         self.auth.create_account("testuser", "password123", "admin")
         accounts = self.auth.list_accounts()
         user_id = accounts[0].id
@@ -502,9 +510,10 @@ class TestPasswordChange(TestAuthManagerSetup):
         new_hash = accounts[0].password_hash
         new_salt = accounts[0].salt
         
-        # Both hash and salt should be different
+        # Hash should be different
         assert new_hash != old_hash
-        assert new_salt != old_salt
+        # Salt is placeholder 'bcrypt' for new accounts
+        assert new_salt == 'bcrypt'
 
 
 class TestRoleBasedAccessControl(TestAuthManagerSetup):

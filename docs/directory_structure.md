@@ -38,7 +38,6 @@ FacePro/
 │   │   ├── main_window.py  # Main Dashboard (Coordinator)
 │   │   ├── video_widget.py # Custom PyQt Label for Video
 │   │   ├── settings_dialog.py
-│   │   ├── face_enrollment.py # Face registration dialogs
 │   │   ├── license_dialog.py  # License activation
 │   │   ├── zone_editor.py  # ROI zone editor
 │   │   ├── styles.py       # Dark theme
@@ -46,10 +45,25 @@ FacePro/
 │   │   ├── setup_wizard.py # First-time setup
 │   │   ├── user_management.py # User CRUD (Admin only)
 │   │   ├── change_password.py # Password change dialog
-│   │   └── dashboard/      # Dashboard Components (Modular)
+│   │   ├── camera_preview.py # Camera preview thread & card
+│   │   ├── camera_dialogs/  # Camera Dialogs (MODULARIZED 2025-12-17)
+│   │   │   ├── __init__.py  # Exports LocalCameraSelector, RTSPConfigDialog
+│   │   │   ├── local_camera_selector.py # Webcam selection (~230 lines)
+│   │   │   └── rtsp_config_dialog.py    # RTSP/IP config (~480 lines)
+│   │   ├── face_enrollment/ # Face Enrollment (Modular)
+│   │   │   ├── __init__.py
+│   │   │   ├── enrollment_dialog.py
+│   │   │   ├── manage_dialog.py
+│   │   │   └── widgets.py
+│   │   ├── settings/        # Settings (Modular)
+│   │   │   ├── __init__.py
+│   │   │   ├── settings_dialog.py
+│   │   │   ├── dialogs/
+│   │   │   └── tabs/
+│   │   └── dashboard/       # Dashboard Components (Modular)
 │   │       ├── __init__.py
-│   │       ├── widgets.py  # ActivityItem, ActionCard
-│   │       ├── sidebar.py  # SidebarWidget
+│   │       ├── widgets.py   # ActivityItem, ActionCard
+│   │       ├── sidebar.py   # SidebarWidget
 │   │       ├── home_page.py # HomePage (welcome, cards)
 │   │       ├── camera_page.py # CameraPage (video grid)
 │   │       └── logs_page.py # LogsPage (filters, export)
@@ -66,7 +80,8 @@ FacePro/
 │   ├── TECH_SPEC.md        # Technical specification
 │   ├── LICENSE_SPEC.md     # License system spec
 │   ├── database_schema.sql # SQLite schema
-│   └── directory_structure.md # This file
+│   ├── directory_structure.md # This file
+│   └── HANDOVER_OVERVIEW.md # Comprehensive handover documentation (NEW 2025-12-17)
 ├── memory-bank/            # AI context preservation
 │   ├── projectbrief.md
 │   ├── productContext.md
@@ -104,4 +119,5 @@ FacePro/
 ### Refactoring Summary
 - **ai_thread.py**: 962 → 360 lines (62% reduction)
 - **gait_engine.py**: 652 → 327 lines (50% reduction)
-- **Total new files**: 7 modular components
+- **camera_dialogs.py**: 843 → 2 files (~710 lines total, 16% reduction)
+- **Total modular components**: 10+ files across core/ and ui/

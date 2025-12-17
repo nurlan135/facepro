@@ -4,7 +4,9 @@ Custom widgets for dashboard UI.
 """
 
 from PyQt6.QtWidgets import QFrame, QLabel, QVBoxLayout, QHBoxLayout, QWidget
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt, pyqtSignal
+import os
 
 from src.ui.styles import COLORS
 
@@ -15,38 +17,55 @@ class ActivityItem(QWidget):
     def __init__(self, name: str, time_str: str, is_known: bool = True, 
                  camera_name: str = "", parent=None):
         super().__init__(parent)
-        self.is_known = is_known  # Store for filtering
-        self.setMinimumHeight(50)
+        self.is_known = is_known
+        self.setMinimumHeight(60)
         
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(15)
         
-        # Status Icon
-        icon = "✓" if is_known else "⚠"
-        icon_color = COLORS['success'] if is_known else COLORS['warning']
-        icon_lbl = QLabel(icon)
-        icon_lbl.setStyleSheet(f"font-size: 18px; color: {icon_color}; font-weight: bold;")
-        icon_lbl.setFixedWidth(30)
-        layout.addWidget(icon_lbl)
+        # 1. Status/Icon Box
+        # This creates the green outlined box with the checkmark seen in the design
+        status_box = QFrame()
+        status_box.setFixedSize(40, 40)
         
-        # Name and Camera (vertical layout)
+        if is_known:
+            status_box.setProperty("class", "activity_icon_box_success")
+            icon_text = "✔"
+        else:
+            status_box.setProperty("class", "activity_icon_box_warning")
+            icon_text = "?"
+            
+        sb_layout = QVBoxLayout(status_box)
+        sb_layout.setContentsMargins(0,0,0,0)
+        sb_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        icon_lbl = QLabel(icon_text)
+        icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sb_layout.addWidget(icon_lbl)
+        
+        layout.addWidget(status_box)
+        
+        # 2. Name and Info
         info_layout = QVBoxLayout()
         info_layout.setSpacing(2)
+        info_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         
         name_lbl = QLabel(name)
-        name_lbl.setStyleSheet(f"font-size: 14px; color: {COLORS['text_primary']}; font-weight: 500;")
+        # Using a class for easy styling of the name
+        name_lbl.setProperty("class", "activity_name")
         info_layout.addWidget(name_lbl)
         
         if camera_name:
-            camera_lbl = QLabel(f"📷 {camera_name}")
-            camera_lbl.setStyleSheet(f"font-size: 11px; color: {COLORS['text_muted']};")
+            camera_lbl = QLabel(camera_name) # Icon removed from text to be cleaner
+            camera_lbl.setProperty("class", "activity_detail")
             info_layout.addWidget(camera_lbl)
-        
+            
         layout.addLayout(info_layout, 1)
         
-        # Time
+        # 3. Time
         time_lbl = QLabel(time_str)
-        time_lbl.setStyleSheet(f"font-size: 12px; color: {COLORS['text_secondary']};")
+        time_lbl.setProperty("class", "activity_time")
         time_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(time_lbl)
 
@@ -56,7 +75,7 @@ class ActionCard(QFrame):
     
     clicked = pyqtSignal()
     
-    def __init__(self, title: str, subtitle: str, icon_str: str, parent=None):
+    def __init__(self, title: str, subtitle: str, icon_source: str, parent=None, is_path: bool = False):
         super().__init__(parent)
         self.setProperty("class", "action_card")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -67,9 +86,17 @@ class ActionCard(QFrame):
         layout.setSpacing(10)
         
         # Icon
-        icon_lbl = QLabel(icon_str)
-        icon_lbl.setStyleSheet(f"font-size: 48px; color: {COLORS['text_primary']};")
+        icon_lbl = QLabel()
         icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        if is_path and os.path.exists(icon_source):
+             pixmap = QPixmap(icon_source)
+             scaled_pixmap = pixmap.scaled(64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+             icon_lbl.setPixmap(scaled_pixmap)
+        else:
+            icon_lbl.setText(icon_source)
+            icon_lbl.setStyleSheet(f"font-size: 48px; color: {COLORS['text_primary']};")
+            
         layout.addWidget(icon_lbl)
         
         # Title

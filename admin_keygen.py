@@ -15,10 +15,26 @@ import hashlib
 import base64
 import re
 
+import os
+
 # =====================================================================
-# SECRET SALT - Bu dəyər src/utils/license_manager.py ilə EYNİ OLMALIDIR!
+# SECRET SALT - Loaded from environment variable for security
+# SECURITY: Salt is NOT hardcoded to prevent unauthorized key generation!
+#
+# Before running this script, set the environment variable:
+#   Windows: set FACEPRO_LICENSE_SALT=your_secret_salt_here
+#   Linux:   export FACEPRO_LICENSE_SALT=your_secret_salt_here
 # =====================================================================
-SECRET_SALT = "FaceGuard_v1_$uper$ecure_2025!"
+def get_license_salt() -> str:
+    """Get license salt from environment variable."""
+    salt = os.environ.get('FACEPRO_LICENSE_SALT')
+    if not salt:
+        print("\n[ERROR] FACEPRO_LICENSE_SALT environment variable is not set!")
+        print("Set it before running this script:")
+        print("  Windows: set FACEPRO_LICENSE_SALT=your_secret_salt_here")
+        print("  Linux:   export FACEPRO_LICENSE_SALT=your_secret_salt_here")
+        sys.exit(1)
+    return salt
 
 
 def validate_machine_id_format(machine_id: str) -> bool:
@@ -37,8 +53,8 @@ def generate_license_key(machine_id: str) -> str:
     Returns:
         Lisenziya açarı (20 simvol, Base32)
     """
-    # Machine ID + Salt
-    raw_string = f"{machine_id.upper()}{SECRET_SALT}"
+    # Machine ID + Salt (salt from environment variable)
+    raw_string = f"{machine_id.upper()}{get_license_salt()}"
     
     # SHA-256 hash
     hash_bytes = hashlib.sha256(raw_string.encode('utf-8')).digest()

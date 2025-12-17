@@ -3,6 +3,7 @@ FacePro Dashboard Home Page
 Welcome banner, action cards, and activity feed.
 """
 
+import os
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QFrame, QListWidget
@@ -11,6 +12,7 @@ from PyQt6.QtCore import pyqtSignal
 
 from src.ui.styles import COLORS
 from src.utils.i18n import tr
+from src.utils.helpers import get_app_root
 from .widgets import ActionCard
 
 
@@ -32,7 +34,7 @@ class HomePage(QWidget):
         
         # Welcome Banner
         banner = QFrame()
-        banner.setStyleSheet(f"background-color: {COLORS['bg_light']}; border-radius: 12px; padding: 20px;")
+        banner.setProperty("class", "welcome_banner")
         b_layout = QVBoxLayout(banner)
         
         self.welcome_lbl = QLabel(tr('welcome_title'))
@@ -50,18 +52,39 @@ class HomePage(QWidget):
         cards_layout = QHBoxLayout()
         cards_layout.setSpacing(20)
         
+        # Icon Paths
+        assets_dir = os.path.join(get_app_root(), 'assets', 'icons')
+        icon_camera = os.path.join(assets_dir, 'icon_camera.png')
+        icon_add_face = os.path.join(assets_dir, 'icon_add_face.png')
+        icon_logs = os.path.join(assets_dir, 'icon_logs.png')
+        
         # Card 1: Start Camera
-        self.card_camera = ActionCard(tr('card_start_camera'), tr('card_start_camera_desc'), "📷")
+        self.card_camera = ActionCard(
+            tr('card_start_camera'), 
+            tr('card_start_camera_desc'), 
+            icon_camera, 
+            is_path=True
+        )
         self.card_camera.clicked.connect(self.start_camera_clicked.emit)
         cards_layout.addWidget(self.card_camera)
         
         # Card 2: Add Face
-        self.card_add_face = ActionCard(tr('card_add_face'), tr('card_add_face_desc'), "👤")
+        self.card_add_face = ActionCard(
+            tr('card_add_face'), 
+            tr('card_add_face_desc'), 
+            icon_add_face, 
+            is_path=True
+        )
         self.card_add_face.clicked.connect(self.add_face_clicked.emit)
         cards_layout.addWidget(self.card_add_face)
         
         # Card 3: View Logs
-        self.card_view_logs = ActionCard(tr('card_view_logs'), tr('card_view_logs_desc'), "📊")
+        self.card_view_logs = ActionCard(
+            tr('card_view_logs'), 
+            tr('card_view_logs_desc'), 
+            icon_logs,
+            is_path=True
+        )
         self.card_view_logs.clicked.connect(self.view_logs_clicked.emit)
         cards_layout.addWidget(self.card_view_logs)
         
