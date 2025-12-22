@@ -35,24 +35,55 @@ class MatchingService:
 
     def load_reid_data(self, embeddings: List[Tuple[int, int, str, np.ndarray]]):
         """Loads bulk Re-ID data into cache."""
-        self._reid_cache = embeddings
+        valid_embeddings = []
+        expected_dim = self._reid_engine.embedding_size if hasattr(self._reid_engine, 'embedding_size') else 1280
+        
+        for item in embeddings:
+            if item[3].shape[0] == expected_dim:
+                valid_embeddings.append(item)
+            else:
+                logger.warning(f"Skipping Re-ID embedding for user '{item[2]}' due to dimension mismatch: expected {expected_dim}, got {item[3].shape[0]}")
+        
+        self._reid_cache = valid_embeddings
         if self._reid_cache:
-            self._reid_matrix = np.vstack([item[3] for item in self._reid_cache])
+            try:
+                self._reid_matrix = np.vstack([item[3] for item in self._reid_cache])
+            except Exception as e:
+                logger.error(f"Failed to build Re-ID matrix: {e}")
+                self._reid_matrix = None
         else:
             self._reid_matrix = None
 
     def load_gait_data(self, embeddings: List[Tuple[int, int, str, np.ndarray]]):
         """Loads bulk Gait data into cache."""
-        self._gait_cache = embeddings
+        valid_embeddings = []
+        # Gait uses 256 from ResNet18-based adapter (EMBEDDING_DIM)
+        expected_dim = getattr(self._gait_engine, 'embedding_size', 256)
+        
+        for item in embeddings:
+            if item[3].shape[0] == expected_dim:
+                valid_embeddings.append(item)
+            else:
+                logger.warning(f"Skipping Gait embedding for user '{item[2]}' due to dimension mismatch: expected {expected_dim}, got {item[3].shape[0]}")
+
+        self._gait_cache = valid_embeddings
         if self._gait_cache:
-            self._gait_matrix = np.vstack([item[3] for item in self._gait_cache])
+            try:
+                self._gait_matrix = np.vstack([item[3] for item in self._gait_cache])
+            except Exception as e:
+                logger.error(f"Failed to build Gait matrix: {e}")
+                self._gait_matrix = None
         else:
             self._gait_matrix = None
 
     def add_reid_vector(self, user_id: int, name: str, vector: np.ndarray):
         """Adds a new Re-ID vector to the in-memory index."""
+        expected_dim = getattr(self._reid_engine, 'embedding_size', 1280)
+        if vector.shape[0] != expected_dim:
+            logger.error(f"Cannot add Re-ID vector for {name}: Dimension mismatch. Expected {expected_dim}, got {vector.shape[0]}")
+            return
+
         # Add to list
-        # Using 0 as placeholder ID since it's RAM-only until next reload
         self._reid_cache.append((0, user_id, name, vector))
         
         # Update Matrix
@@ -63,6 +94,11 @@ class MatchingService:
 
     def add_gait_vector(self, user_id: int, name: str, vector: np.ndarray):
         """Adds a new Gait vector to the in-memory index."""
+        expected_dim = getattr(self._gait_engine, 'embedding_size', 256)
+        if vector.shape[0] != expected_dim:
+            logger.error(f"Cannot add Gait vector for {name}: Dimension mismatch. Expected {expected_dim}, got {vector.shape[0]}")
+            return
+
         self._gait_cache.append((0, user_id, name, vector))
         
         if self._gait_matrix is None:

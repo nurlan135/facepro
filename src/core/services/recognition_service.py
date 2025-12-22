@@ -68,7 +68,10 @@ class RecognitionService:
             gait_data = self._embedding_repo.get_gait_embeddings_with_names()
             self._matching_service.load_gait_data(gait_data)
             
-            logger.info(f"RecognitionService ready. Faces: {loaded_faces}")
+            # 4. Initialize Re-ID sample counts from DB
+            self._user_reid_samples = self._embedding_repo.get_reid_embedding_counts()
+            
+            logger.info(f"RecognitionService ready. Faces: {loaded_faces}. Re-ID Counts: {self._user_reid_samples}")
         except Exception as e:
             logger.error(f"Failed to load recognition data: {e}")
 

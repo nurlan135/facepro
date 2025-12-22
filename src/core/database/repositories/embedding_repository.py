@@ -1,6 +1,6 @@
 
 import numpy as np
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 from src.core.database.db_manager import DatabaseManager
 from src.utils.logger import get_logger
 
@@ -159,6 +159,15 @@ class EmbeddingRepository:
             except Exception:
                 pass
         return results
+
+    def get_reid_embedding_counts(self) -> Dict[int, int]:
+        """
+        Get the count of Re-ID embeddings for each user.
+        Returns: Dict[user_id, count]
+        """
+        query = "SELECT user_id, COUNT(*) FROM reid_embeddings GROUP BY user_id"
+        rows = self.db.execute_read(query)
+        return {uid: count for uid, count in rows}
 
     # ================= Gait Embeddings =================
 

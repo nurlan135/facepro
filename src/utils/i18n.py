@@ -397,8 +397,10 @@ def get_translator() -> Translator:
         _translator = Translator()
         
         # Load saved language from config
+        # The language setting is stored under the 'ui' key
         config = load_config()
-        lang = config.get('language', 'en')
+        ui_config = config.get('ui', {})
+        lang = ui_config.get('language', config.get('language', 'en'))
         _translator.load_language(lang)
         
     return _translator
