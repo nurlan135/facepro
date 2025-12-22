@@ -124,3 +124,15 @@ def reset_singletons():
         GaitEngine._instance = None
     except:
         pass
+
+    try:
+        from src.core.database.db_manager import DatabaseManager
+        # Close connection if exists
+        if DatabaseManager._instance and DatabaseManager._instance.connection:
+            try:
+                DatabaseManager._instance.connection.close()
+            except:
+                pass
+        DatabaseManager._instance = None
+    except:
+        pass

@@ -14,6 +14,7 @@ from src.ui.styles import COLORS
 from src.utils.i18n import tr
 from src.utils.helpers import get_app_root
 from .widgets import ActionCard
+from .components.activity_list import ActivityListWidget
 
 
 class HomePage(QWidget):
@@ -90,14 +91,13 @@ class HomePage(QWidget):
         
         layout.addLayout(cards_layout)
         layout.addSpacing(20)
-        
+
         # Recent Activity Section
         self.recent_activity_lbl = QLabel(f"📄 {tr('recent_activity')}")
         self.recent_activity_lbl.setProperty("class", "sidebar_title")
         layout.addWidget(self.recent_activity_lbl)
         
-        self.activity_feed = QListWidget()
-        self.activity_feed.setProperty("class", "activity_feed")
+        self.activity_feed = ActivityListWidget()
         layout.addWidget(self.activity_feed)
     
     def update_language(self):

@@ -69,7 +69,10 @@
         "filter_known": "Tanınmış",
         "filter_unknown": "Naməlum",
         "logs_entries": "giriş",
-        "btn_load_more": "Daha çox yüklə"
+        "btn_load_more": "Daha çox yüklə",
+        "no_more_records": "Başqa qeyd yoxdur",
+        "loading": "Yüklənir...",
+        "error_retry": "Xəta. Yenidən cəhd et?"
     },
     "camera": {
         "rtsp_url": "RTSP URL",
@@ -262,6 +265,14 @@
         "refresh": "Yenilə",
         "invalid_ip": "Yanlış IP formatı",
         "connection_settings": "Bağlantı Ayarları",
+        "available_cameras": "Mövcud Kameralar:",
+        "add_new_camera": "Yeni Kamera Əlavə Et:",
+        "btn_local_camera": "📷 Lokal Kamera (Webcam)",
+        "btn_rtsp_camera": "🌐 RTSP/IP Kamera",
+        "camera_selected": "Kamera Seçildi",
+        "camera_selected_msg": "'{name}' seçildi.\n'Başlat' düyməsini sıxaraq izləməyə başlaya bilərsiniz.",
+        "no_camera_selected_msg": "Seçilmiş kamera tapılmadı!",
+        "no_cameras_configured": "Kamera konfiqurasiya edilməyib!",
         "cancel": "Ləğv et"
     },
     "rtsp": {

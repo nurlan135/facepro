@@ -322,6 +322,18 @@ QHeaderView::section {{
     border-bottom: 2px solid {COLORS['border']};
 }}
 
+QPushButton[class="camera_list_btn"] {{
+    text-align: left;
+    padding: 8px 15px;
+    background-color: {COLORS['surface']};
+    border: 1px solid {COLORS['border']};
+    border-radius: 5px;
+}}
+
+QPushButton[class="camera_list_btn"]:hover {{
+    border-color: {COLORS['primary']};
+}}
+
 QPushButton[class="secondary"] {{
     background-color: {COLORS['bg_light']};
     color: {COLORS['text_secondary']};

@@ -281,3 +281,7 @@ class DatabaseManager:
             except sqlite3.Error as e:
                 logger.error(f"Database read error: {e} | Query: {query}")
                 return [], []
+
+def get_db_manager() -> DatabaseManager:
+    """Convenience wrapper to get the DatabaseManager singleton."""
+    return DatabaseManager()

@@ -48,6 +48,7 @@ from src.core.ai_thread import AIWorker, FrameResult, Detection, DetectionType, 
 from src.core.cleaner import get_cleaner
 from src.hardware.telegram_notifier import get_telegram_notifier
 from src.core.storage_worker import StorageWorker
+from src.core.workers.data_loader import DataLoaderWorker
 
 # Dashboard components
 from src.ui.dashboard import SidebarWidget, HomePage, CameraPage, LogsPage, ActivityItem
@@ -73,6 +74,7 @@ class MainWindow(QMainWindow):
         self._camera_manager = CameraManager()
         self._ai_worker: Optional[AIWorker] = None
         self._storage_worker: Optional[StorageWorker] = StorageWorker()
+        self._data_loader = DataLoaderWorker()
         self._telegram_notifier = get_telegram_notifier()
         self._auth_manager = get_auth_manager()
         
@@ -97,6 +99,10 @@ class MainWindow(QMainWindow):
         
         # Connect language change signal
         get_translator().language_changed.connect(self._on_language_changed)
+        
+        # Connect data loader signals
+        self._data_loader.events_loaded.connect(self._on_events_loaded)
+        self._data_loader.error_occurred.connect(self._on_data_error)
         
         # Initial Data Load for stats
         self._update_stats()
@@ -193,75 +199,29 @@ class MainWindow(QMainWindow):
     
     def _show_camera_selector(self):
         """Kamera seçim dialoqu (Mövcud kameraları göstər və ya yeni əlavə et)."""
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QPushButton, QLabel, QFrame
+        from src.ui.camera_dialogs.camera_selection_dialog import CameraSelectionDialog
         
-        select_dialog = QDialog(self)
-        select_dialog.setWindowTitle("Kamera Seçimi")
-        select_dialog.setMinimumWidth(350)
-        layout = QVBoxLayout(select_dialog)
-        layout.setSpacing(10)
+        dialog = CameraSelectionDialog(self, self._cameras_config)
         
-        # 1. Mövcud Kameralar Siyahısı
-        if self._cameras_config:
-            lbl = QLabel("Mövcud Kameralar:")
-            lbl.setStyleSheet("font-weight: bold; color: #a0a0a0;")
-            layout.addWidget(lbl)
-            
-            for cam in self._cameras_config:
-                cam_name = cam.get('name', 'Kamera')
-                btn = QPushButton(f"📹 {cam_name}")
-                btn.setStyleSheet(f"""
-                    QPushButton {{
-                        text-align: left;
-                        padding: 8px 15px;
-                        background-color: {COLORS['surface']};
-                        border: 1px solid {COLORS['border']};
-                        border-radius: 5px;
-                    }}
-                    QPushButton:hover {{
-                        border-color: {COLORS['primary']};
-                    }}
-                """)
-                # Lambda capture fix: default argument v=cam_name
-                btn.clicked.connect(lambda checked, n=cam_name: self._select_existing_camera(select_dialog, n))
-                layout.addWidget(btn)
-                
-            line = QFrame()
-            line.setFrameShape(QFrame.Shape.HLine)
-            line.setFrameShadow(QFrame.Shadow.Sunken)
-            line.setStyleSheet(f"background-color: {COLORS['border']}; margin: 10px 0;")
-            layout.addWidget(line)
+        # Connect signals
+        dialog.camera_selected.connect(self._on_camera_selected)
+        dialog.add_local_camera_requested.connect(self._on_add_local_camera)
+        dialog.add_rtsp_camera_requested.connect(self._on_add_rtsp_camera)
         
-        # 2. Yeni Kamera Əlavə Et
-        lbl_new = QLabel("Yeni Kamera Əlavə Et:")
-        lbl_new.setStyleSheet("font-weight: bold; color: #a0a0a0;")
-        layout.addWidget(lbl_new)
-        
-        local_btn = QPushButton("📷 Lokal Kamera (Webcam)")
-        local_btn.clicked.connect(lambda: self._select_local_camera(select_dialog))
-        layout.addWidget(local_btn)
-        
-        rtsp_btn = QPushButton("🌐 RTSP/IP Kamera")
-        rtsp_btn.clicked.connect(lambda: self._select_rtsp_camera(select_dialog))
-        layout.addWidget(rtsp_btn)
-        
-        # Close button
-        cancel_btn = QPushButton("Ləğv Et")
-        cancel_btn.clicked.connect(select_dialog.reject)
-        layout.addWidget(cancel_btn)
-        
-        select_dialog.exec()
+        dialog.exec()
 
-    def _select_existing_camera(self, dialog, name):
+    def _on_camera_selected(self, name):
         """Mövcud kameranı seç."""
-        dialog.accept()
-        self._selected_camera_name = name  # Seçilmiş kameranı yadda saxla
+        self._selected_camera_name = name
         self.camera_page.set_camera_status(name)
-        QMessageBox.information(self, "Kamera Seçildi", f"'{name}' seçildi.\n'Başlat' düyməsini sıxaraq izləməyə başlaya bilərsiniz.")
+        QMessageBox.information(
+            self, 
+            tr('camera_dialog.camera_selected'), 
+            tr('camera_dialog.camera_selected_msg').replace('{name}', name)
+        )
     
-    def _select_local_camera(self, parent_dialog):
+    def _on_add_local_camera(self):
         """Lokal kamera seçimi."""
-        parent_dialog.close()
         from src.ui.camera_dialogs import LocalCameraSelector
         
         dialog = LocalCameraSelector(parent=self)
@@ -271,9 +231,8 @@ class MainWindow(QMainWindow):
                 self._cameras_config.append(camera_data)
                 self.camera_page.set_camera_status(camera_data.get('name', ''))
     
-    def _select_rtsp_camera(self, parent_dialog):
+    def _on_add_rtsp_camera(self):
         """RTSP kamera seçimi."""
-        parent_dialog.close()
         from src.ui.camera_dialogs import RTSPConfigDialog
         
         dialog = RTSPConfigDialog(parent=self)
@@ -286,7 +245,7 @@ class MainWindow(QMainWindow):
     def _start_system(self):
         """Sistemi başladır."""
         if not self._cameras_config:
-            QMessageBox.warning(self, tr('msg_error'), "No cameras configured!")
+            QMessageBox.warning(self, tr('msg_error'), tr('camera_dialog.no_cameras_configured'))
             return
         
         # Hansi kameraları başlatmaq lazımdır?
@@ -298,7 +257,7 @@ class MainWindow(QMainWindow):
             cameras_to_start = self._cameras_config
         
         if not cameras_to_start:
-            QMessageBox.warning(self, tr('msg_error'), "Seçilmiş kamera tapılmadı!")
+            QMessageBox.warning(self, tr('msg_error'), tr('camera_dialog.no_camera_selected_msg'))
             return
         
         # Setup cameras
@@ -410,23 +369,15 @@ class MainWindow(QMainWindow):
         time_str = now.strftime("%d.%m %H:%M:%S")  # Date + Time
         camera_name = getattr(detection, 'camera_name', '')
         
-        # Add to activity feed
-        item = QListWidgetItem()
-        widget = ActivityItem(detection.label, time_str, is_known, camera_name)
-        item.setSizeHint(widget.sizeHint())
-        self.home_page.activity_feed.insertItem(0, item)
-        self.home_page.activity_feed.setItemWidget(item, widget)
+        # Add to activity feed (Newest Top)
+        self.home_page.activity_feed.prepend_event(detection.label, time_str, is_known, camera_name)
         
         # Limit items
         if self.home_page.activity_feed.count() > 20:
             self.home_page.activity_feed.takeItem(self.home_page.activity_feed.count() - 1)
         
-        # Also add to logs
-        log_item = QListWidgetItem()
-        log_widget = ActivityItem(detection.label, time_str, is_known, camera_name)
-        log_item.setSizeHint(log_widget.sizeHint())
-        self.logs_page.logs_list.insertItem(0, log_item)
-        self.logs_page.logs_list.setItemWidget(log_item, log_widget)
+        # Also add to logs (Newest Top)
+        self.logs_page.logs_list.prepend_event(detection.label, time_str, is_known, camera_name)
         
         # Limit log items to prevent UI lag/memory bloat
         if self.logs_page.logs_list.count() > 200:
@@ -444,77 +395,77 @@ class MainWindow(QMainWindow):
             self._logs_offset += 1 
 
     def _load_initial_events(self):
-        """Loads first 20 events from DB on startup."""
-        try:
-            from src.core.database.repositories.event_repository import EventRepository
-            repo = EventRepository()
-            events = repo.get_recent_events(limit=20)
-            
-            from .dashboard.widgets import ActivityItem
-            
-            for event in reversed(events): 
-                # (id, event_type, object_label, confidence, snapshot_path, identification_method, created_at)
-                label = event[2] or "Unknown"
-                time_str = event[6]
-                is_known = label not in ["Naməlum", "Unknown", "Naməlum Şəxs"]
-                camera_name = "" # Snapshot path usually has camera name but we don't parse it here
-                
-                # Add to activity feed
-                item = QListWidgetItem()
-                widget = ActivityItem(label, time_str, is_known, camera_name)
-                item.setSizeHint(widget.sizeHint())
-                self.home_page.activity_feed.insertItem(0, item)
-                self.home_page.activity_feed.setItemWidget(item, widget)
-                
-                # Add to logs page
-                log_item = QListWidgetItem()
-                log_widget = ActivityItem(label, time_str, is_known, camera_name)
-                log_item.setSizeHint(log_widget.sizeHint())
-                self.logs_page.logs_list.insertItem(0, log_item)
-                self.logs_page.logs_list.setItemWidget(log_item, log_widget)
-            
-            self.logs_page.update_count(self.logs_page.logs_list.count())
-            self._logs_offset = len(events)
-            logger.info(f"Loaded {len(events)} initial events into UI")
-        except Exception as e:
-            logger.error(f"Failed to load initial events: {e}")
+        """Loads first 20 events from DB on startup (Async)."""
+        logger.info("Requesting initial events...")
+        self.logs_page.btn_load_more.setEnabled(False) # Disable until loaded
+        self._data_loader.load_events(limit=20, offset=0, request_type="initial")
 
     def _on_load_more_logs(self):
-        """Loads more logs from DB using offset."""
+        """Loads more logs from DB using offset (Async)."""
+        logger.info(f"Requesting more logs (offset={self._logs_offset})...")
+        self.logs_page.btn_load_more.setEnabled(False)
+        self.logs_page.btn_load_more.setText(tr('dashboard.loading'))
+        self._data_loader.load_events(limit=50, offset=self._logs_offset, request_type="more")
+
+    @pyqtSlot(list, int, str)
+    def _on_events_loaded(self, events, count, request_type):
+        """Handle loaded events from worker."""
         try:
-            from src.core.database.repositories.event_repository import EventRepository
-            repo = EventRepository()
-            limit = 50
+            # Reset button state
+            self.logs_page.btn_load_more.setEnabled(True)
+            self.logs_page.btn_load_more.setText(tr('dashboard.btn_load_more'))
             
-            events = repo.get_events_paginated(limit=limit, offset=self._logs_offset)
             if not events:
-                self.logs_page.btn_load_more.setEnabled(False)
-                self.logs_page.btn_load_more.setText("Başqa qeyd yoxdur")
+                if request_type == "more":
+                    self.logs_page.btn_load_more.setEnabled(False)
+                    self.logs_page.btn_load_more.setText(tr('dashboard.no_more_records'))
                 return
+
+            if request_type == "initial":
+                self._logs_offset = 0 # Reset offset
             
-            from .dashboard.widgets import ActivityItem
+            processed_items = []
             
             for event in events:
                 label = event[2] or "Unknown"
                 time_str = event[6]
                 is_known = label not in ["Naməlum", "Unknown", "Naməlum Şəxs"]
-                camera_name = ""
+                camera_name = "" 
+                processed_items.append((label, time_str, is_known, camera_name))
+
+            if request_type == "initial":
+                # Activity Feed (Home Page) - Newest Top
+                # When using insert(0), iterating from reversed(events) [Old->New] -> Old, New -> Newest at Top.
+                for label, time_str, is_known, cam_name in reversed(processed_items):
+                    self.home_page.activity_feed.prepend_event(label, time_str, is_known, cam_name)
+
+                # Logs Page (List) - Newest Top
+                for label, time_str, is_known, cam_name in reversed(processed_items):
+                    self.logs_page.logs_list.prepend_event(label, time_str, is_known, cam_name)
+
+                self._logs_offset = len(events)
+                logger.info(f"Async: Loaded {len(events)} initial events")
+
+            elif request_type == "more":
+                for label, time_str, is_known, cam_name in processed_items:
+                    self.logs_page.logs_list.append_event(label, time_str, is_known, cam_name)
                 
-                item = QListWidgetItem()
-                widget = ActivityItem(label, time_str, is_known, camera_name)
-                item.setSizeHint(widget.sizeHint())
-                self.logs_page.logs_list.addItem(item) # Add to bottom
-                self.logs_page.logs_list.setItemWidget(item, widget)
-            
-            self._logs_offset += len(events)
+                self._logs_offset += len(events)
+                logger.info(f"Async: Loaded {len(events)} more logs (Total: {self._logs_offset})")
+
+            # Update count
             self.logs_page.update_count(self.logs_page.logs_list.count())
-            logger.info(f"Loaded {len(events)} more logs (Total Loaded: {self._logs_offset})")
+            
         except Exception as e:
-            logger.error(f"Failed to load more logs: {e}")
+            logger.error(f"Error handling loaded events: {e}")
         
         self._update_stats()
-        
-        self._update_stats()
+
+    @pyqtSlot(str)
+    def _on_data_error(self, error_msg):
+        self.logs_page.btn_load_more.setEnabled(True)
+        self.logs_page.btn_load_more.setText(tr('dashboard.error_retry'))
+        logger.error(f"Data Loader Error: {error_msg}")
 
     def _update_stats(self):
         """Stats widget-i yenilə."""

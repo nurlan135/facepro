@@ -37,7 +37,6 @@ class AIWorker(QThread):
     
     frame_processed = pyqtSignal(object)  # FrameResult
     detection_alert = pyqtSignal(object, np.ndarray)  # Detection, frame
-    event_saved_signal = pyqtSignal(int) # Signal to relay storage worker event
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -49,7 +48,7 @@ class AIWorker(QThread):
 
         # Async Workers
         self._storage_worker = StorageWorker()
-        self._storage_worker.event_saved.connect(self.event_saved_signal.emit)
+        # event_saved signal is not used by AIWorker's consumers, so we don't need to relay it.
         
         # Services
         self._detection_service = DetectionService()
@@ -94,7 +93,8 @@ class AIWorker(QThread):
                     if detection.type == DetectionType.PERSON:
                         detection.camera_name = camera_name
                         self.detection_alert.emit(detection, frame)
-                        self._storage_worker.add_event_task(detection, frame)
+                        # We do NOT save event here to avoid duplicates and spam.
+                        # MainWindow handles event filtering (cooldown) and saving.
                 
                 # Periodic Cleanup
                 self._recognition_service.cleanup_buffers()

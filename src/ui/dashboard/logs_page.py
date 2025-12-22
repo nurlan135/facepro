@@ -1,3 +1,4 @@
+
 """
 FacePro Dashboard Logs Page
 System logs and event export.
@@ -5,11 +6,12 @@ System logs and event export.
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-    QListWidget, QListWidgetItem, QButtonGroup
+    QListWidgetItem, QButtonGroup
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 
 from src.utils.i18n import tr
+from .components.activity_list import ActivityListWidget
 
 
 class LogsPage(QWidget):
@@ -66,15 +68,14 @@ class LogsPage(QWidget):
         layout.addLayout(filter_layout)
         
         # Logs List
-        self.logs_list = QListWidget()
-        self.logs_list.setProperty("class", "activity_feed")
+        self.logs_list = ActivityListWidget()
         layout.addWidget(self.logs_list)
         
         # Footer Layout
         footer_layout = QHBoxLayout()
         
         # Load More Button
-        self.btn_load_more = QPushButton(tr('btn_load_more') if tr('btn_load_more') != 'btn_load_more' else "Daha çox yüklə")
+        self.btn_load_more = QPushButton(tr('btn_load_more'))
         self.btn_load_more.setProperty("class", "secondary")
         self.btn_load_more.clicked.connect(self.load_more_clicked.emit)
         footer_layout.addWidget(self.btn_load_more)
@@ -155,4 +156,5 @@ class LogsPage(QWidget):
         self.btn_all.setText(tr('filter_all'))
         self.btn_known.setText(tr('filter_known'))
         self.btn_unknown.setText(tr('filter_unknown'))
-
+        # Load more text
+        self.btn_load_more.setText(tr('btn_load_more'))

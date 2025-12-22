@@ -105,7 +105,7 @@ class EmbeddingRepository:
         """
         # Ensure float32 for ReID/EfficientNet
         blob = vector.astype(np.float32).tobytes()
-        self.db.execute_write(query, (user_id, blob, confidence))
+        return self.db.execute_write(query, (user_id, blob, confidence))
 
     def add_reid_embeddings(self, embeddings_data: List[Tuple[int, np.ndarray, float]]) -> bool:
         """

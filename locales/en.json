@@ -69,7 +69,10 @@
     "filter_known": "Known",
     "filter_unknown": "Unknown",
     "logs_entries": "entries",
-    "btn_load_more": "Load More"
+    "btn_load_more": "Load More",
+    "no_more_records": "No more records",
+    "loading": "Loading...",
+    "error_retry": "Error. Retry?"
   },
   "camera": {
     "rtsp_url": "RTSP URL",
@@ -262,6 +265,14 @@
     "refresh": "Refresh",
     "invalid_ip": "Invalid IP format",
     "connection_settings": "Connection Settings",
+    "available_cameras": "Available Cameras:",
+    "add_new_camera": "Add New Camera:",
+    "btn_local_camera": "📷 Local Camera (Webcam)",
+    "btn_rtsp_camera": "🌐 RTSP/IP Camera",
+    "camera_selected": "Camera Selected",
+    "camera_selected_msg": "'{name}' selected.\nClick 'Start' to begin monitoring.",
+    "no_camera_selected_msg": "No camera selected!",
+    "no_cameras_configured": "No cameras configured!",
     "cancel": "Cancel"
   },
   "rtsp": {

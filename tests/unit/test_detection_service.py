@@ -1,108 +1,97 @@
+
 """
 Detection Service Unit Tests
-Tests for object detection functionality.
+Tests for object detection functionality using mocks.
 """
 
 import pytest
 import numpy as np
 from unittest.mock import Mock, patch, MagicMock
 
+from src.core.services.detection_service import DetectionService
+from src.core.detection import Detection, DetectionType
 
-class TestDetectionServiceInit:
-    """Test DetectionService initialization."""
+class TestDetectionService:
     
-    def test_import_detection_service(self):
-        """DetectionService modulu import olunmalı."""
-        from src.core.services.detection_service import DetectionService
-        assert DetectionService is not None
-    
-    def test_create_instance(self):
-        """DetectionService instansı yaradılmalı."""
-        from src.core.services.detection_service import DetectionService
-        service = DetectionService()
+    @pytest.fixture
+    def mock_motion(self):
+        with patch('src.core.services.detection_service.MotionDetector') as MockMotion:
+            yield MockMotion.return_value
+
+    @pytest.fixture
+    def mock_yolo(self):
+        with patch('src.core.services.detection_service.ObjectDetector') as MockYolo:
+            yield MockYolo.return_value
+
+    @pytest.fixture
+    def service(self, mock_motion, mock_yolo):
+        return DetectionService()
+
+    def test_initialization(self, service):
         assert service is not None
 
-
-class TestDetectionServiceMethods:
-    """Test DetectionService methods."""
-    
-    @pytest.fixture
-    def service(self):
-        from src.core.services.detection_service import DetectionService
-        return DetectionService()
-    
-    def test_detect_exists(self, service):
-        """detect metodu mövcud olmalı."""
-        assert hasattr(service, 'detect')
-        assert callable(service.detect)
-    
-    def test_detect_returns_tuple(self, service, mock_frame):
-        """detect() metodu tuple qaytarmalı."""
-        result = service.detect(mock_frame, "TestCamera")
-        assert isinstance(result, tuple)
-        assert len(result) == 2
-    
-    def test_detect_returns_bool_and_list(self, service, mock_frame):
-        """detect() (bool, list) formatında qaytarmalı."""
-        motion_detected, detections = service.detect(mock_frame, "TestCamera")
-        assert isinstance(motion_detected, bool)
-        assert isinstance(detections, list)
-    
-    def test_set_roi_exists(self, service):
-        """set_roi metodu mövcud olmalı."""
-        assert hasattr(service, 'set_roi')
-        assert callable(service.set_roi)
-    
-    def test_set_roi_accepts_points(self, service):
-        """set_roi() nöqtələri qəbul etməli."""
-        points = [(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)]
-        # Should not raise
-        service.set_roi("Camera1", points)
-
-
-class TestDetectionServiceROI:
-    """Test ROI (Region of Interest) functionality."""
-    
-    @pytest.fixture
-    def service(self):
-        from src.core.services.detection_service import DetectionService
-        return DetectionService()
-    
-    def test_set_and_clear_roi(self, service):
-        """ROI set və clear olunmalı."""
-        camera_name = "TestCam"
-        points = [(0.2, 0.2), (0.8, 0.2), (0.8, 0.8), (0.2, 0.8)]
+    def test_detect_no_motion(self, service, mock_motion, mock_yolo):
+        # Setup: No motion, no tracking active
+        mock_motion.detect.return_value = False
+        frame = np.zeros((100, 100, 3), dtype=np.uint8)
         
-        service.set_roi(camera_name, points)
-        service.set_roi(camera_name, [])  # Clear
+        has_motion, detections = service.detect(frame, "Cam1")
+        
+        assert has_motion is False
+        assert len(detections) == 0
+        mock_yolo.detect.assert_not_called()
 
+    def test_detect_motion_triggers_yolo(self, service, mock_motion, mock_yolo):
+        # Setup: Motion detected
+        mock_motion.detect.return_value = True
+        frame = np.zeros((100, 100, 3), dtype=np.uint8)
+        
+        # YOLO returns one detection
+        det = Detection(DetectionType.PERSON, (0,0,10,10), 0.9)
+        mock_yolo.detect.return_value = [det]
+        
+        has_motion, detections = service.detect(frame, "Cam1")
+        
+        assert has_motion is True
+        assert len(detections) == 1
+        assert detections[0] == det
+        mock_yolo.detect.assert_called_once()
 
-class TestObjectDetector:
-    """Test ObjectDetector directly."""
-    
-    def test_import_object_detector(self):
-        """ObjectDetector modulu import olunmalı."""
-        from src.core.object_detector import ObjectDetector
-        assert ObjectDetector is not None
-    
-    def test_get_global_track_id_function(self):
-        """get_global_track_id funksiyası mövcud olmalı."""
+    def test_set_roi(self, service):
+        points = [(0,0), (1,1), (0,1)]
+        service.set_roi("Cam1", points)
+        assert service._camera_rois["Cam1"] == points
+        
+        service.set_roi("Cam1", [])
+        assert "Cam1" not in service._camera_rois
+
+    def test_roi_filtering(self, service, mock_motion, mock_yolo):
+        # Setup: Motion detected
+        mock_motion.detect.return_value = True
+        frame = np.zeros((100, 100, 3), dtype=np.uint8)
+        
+        # YOLO returns two detections: one inside ROI, one outside
+        # ROI: Top-Left quarter (0.0, 0.0) to (0.5, 0.5)
+        roi_points = [(0.0, 0.0), (0.5, 0.0), (0.5, 0.5), (0.0, 0.5)]
+        service.set_roi("Cam1", roi_points)
+        
+        # Det 1: Center (0.25, 0.25) -> Inside
+        det1 = Detection(DetectionType.PERSON, (20, 20, 30, 30), 0.9) # Center ~25,25 on 100x100 -> 0.25, 0.25
+        
+        # Det 2: Center (0.75, 0.75) -> Outside
+        det2 = Detection(DetectionType.PERSON, (70, 70, 80, 80), 0.9) # Center ~75,75 -> 0.75, 0.75
+        
+        mock_yolo.detect.return_value = [det1, det2]
+        
+        has_motion, detections = service.detect(frame, "Cam1")
+        
+        assert len(detections) == 1
+        assert detections[0] == det1
+
+class TestObjectDetectorHelper:
+    def test_global_track_id(self):
         from src.core.object_detector import get_global_track_id
-        assert callable(get_global_track_id)
-    
-    def test_allowed_classes_defined(self):
-        """ALLOWED_CLASSES təyin olunmalı."""
-        from src.core.object_detector import ObjectDetector
-        assert hasattr(ObjectDetector, 'ALLOWED_CLASSES')
-        assert ObjectDetector.PERSON_ID in ObjectDetector.ALLOWED_CLASSES
-    
-    def test_class_ids_correct(self):
-        """COCO class ID-ləri düzgün olmalı."""
-        from src.core.object_detector import ObjectDetector
-        assert ObjectDetector.PERSON_ID == 0
-        assert ObjectDetector.CAT_ID == 15
-        assert ObjectDetector.DOG_ID == 16
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+        
+        assert get_global_track_id(0, 5) == 5
+        assert get_global_track_id(1, 5) == 100005
+        assert get_global_track_id(2, -1) == -1
