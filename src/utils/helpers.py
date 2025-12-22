@@ -181,6 +181,46 @@ def load_config(filename: str = 'settings.json') -> Dict[str, Any]:
         return {}
 
 
+def load_validated_config(filename: str = 'settings.json') -> Dict[str, Any]:
+    """
+    Konfiqurasiya faylını Pydantic validation ilə oxuyur.
+    Səhv olduqda default dəyərləri istifadə edir.
+    
+    Args:
+        filename: Fayl adı (config qovluğunda)
+    
+    Returns:
+        Validated konfiqurasiya dictionary-si
+    """
+    try:
+        from .config_models import AppConfig
+        from pydantic import ValidationError
+    except ImportError:
+        logger.warning("Pydantic not available, using basic config loader")
+        return load_config(filename)
+    
+    config_path = os.path.join(get_config_path(), filename)
+    
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            raw_config = json.load(f)
+    except FileNotFoundError:
+        logger.warning("Config file not found, using defaults")
+        raw_config = {}
+    except json.JSONDecodeError as e:
+        logger.error(f"Config file is malformed: {e}")
+        raw_config = {}
+    
+    # Validate with Pydantic
+    try:
+        validated = AppConfig(**raw_config)
+        return validated.model_dump()
+    except ValidationError as e:
+        logger.error(f"Config validation failed: {e}")
+        logger.warning("Using default configuration")
+        return AppConfig().model_dump()
+
+
 def save_config(data: Dict[str, Any], filename: str = 'settings.json') -> bool:
     """
     Konfiqurasiyanı JSON faylına yazır.

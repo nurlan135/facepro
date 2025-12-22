@@ -6,6 +6,7 @@ from .cameras_tab import CamerasTab
 from .ai_tab import AITab
 from .notifications_tab import NotificationsTab
 from .storage_tab import StorageTab
+from .audit_tab import AuditTab
 
 __all__ = [
     'GeneralTab',
@@ -13,4 +14,5 @@ __all__ = [
     'AITab',
     'NotificationsTab',
     'StorageTab',
+    'AuditTab',
 ]

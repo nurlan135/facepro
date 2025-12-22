@@ -50,6 +50,16 @@ class EventRepository:
         """
         return self.db.execute_read(query, (limit,))
 
+    def get_events_paginated(self, limit: int = 50, offset: int = 0) -> List[Tuple]:
+        """Fetch events with limit and offset."""
+        query = """
+            SELECT id, event_type, object_label, confidence, snapshot_path, identification_method, created_at
+            FROM events
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?
+        """
+        return self.db.execute_read(query, (limit, offset))
+
     def get_events_count(self) -> int:
         query = "SELECT COUNT(*) FROM events"
         res = self.db.execute_read(query)

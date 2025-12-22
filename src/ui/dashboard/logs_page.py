@@ -17,6 +17,7 @@ class LogsPage(QWidget):
     
     export_clicked = pyqtSignal()
     filter_changed = pyqtSignal(str)  # 'all', 'known', 'unknown'
+    load_more_clicked = pyqtSignal()
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -69,11 +70,24 @@ class LogsPage(QWidget):
         self.logs_list.setProperty("class", "activity_feed")
         layout.addWidget(self.logs_list)
         
+        # Footer Layout
+        footer_layout = QHBoxLayout()
+        
+        # Load More Button
+        self.btn_load_more = QPushButton(tr('btn_load_more') if tr('btn_load_more') != 'btn_load_more' else "Daha çox yüklə")
+        self.btn_load_more.setProperty("class", "secondary")
+        self.btn_load_more.clicked.connect(self.load_more_clicked.emit)
+        footer_layout.addWidget(self.btn_load_more)
+        
+        footer_layout.addStretch()
+        
         # Export Button
         self.btn_export = QPushButton(tr('export_csv'))
         self.btn_export.setProperty("class", "secondary")
         self.btn_export.clicked.connect(self.export_clicked.emit)
-        layout.addWidget(self.btn_export)
+        footer_layout.addWidget(self.btn_export)
+        
+        layout.addLayout(footer_layout)
     
     def _set_filter(self, filter_type: str):
         """Set active filter."""

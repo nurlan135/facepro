@@ -82,6 +82,10 @@
     * Əgər İnternet YOXDURSA -> USB Portdakı Modemi (COM port) yoxla.
     * AT Komandası ilə SMS göndər: *"DİQQƏT: Obyektdə hərəkət var! (İnternet kəsilib)"*.
 
+### 5.5. Təhlükəsizlik Jurnalı (Audit Trail)
+* **Tam Nəzarət:** İnzibati hərəkətlərin (Giriş/Çıxış, Ayarlar, İstifadəçi silinməsi) qeydiyyatı.
+* **Şəffaflıq:** Hansı istifadəçinin nə vaxt hansı dəyişikliyi etdiyini izləmək imkanı.
+
 ---
 
 ## 6. Texniki Spesifikasiyalar (Technical Specs)
@@ -92,7 +96,7 @@
 * **Database:** SQLite (lokal fayl: `faceguard.db`)
 * **AI Models:**
     * Object: `yolov8n.pt` (Quantized/Exported to ONNX for speed).
-    * Face: `dlib` (hog) və ya `face_recognition`.
+    * Face: `InsightFace` (ArcFace) - daha dəqiq və sürətli (512d vektor). Legacy dəstək: `dlib`.
     * Re-ID: `osnet_x1_0` və ya `efficientnet_b0` (Feature Extractor).
 * **Hardware Integration:** `pyserial` (GSM Modem üçün).
 

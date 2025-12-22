@@ -85,6 +85,7 @@ class MainWindow(QMainWindow):
         self._known_faces_count = 0 
         self._total_detections_count = 0
         self._selected_camera_name = None  # Seçilmiş kamera adı
+        self._logs_offset = 0
         
         self.setWindowTitle("FacePro - Smart Security System")
         self.resize(1366, 768)
@@ -164,7 +165,11 @@ class MainWindow(QMainWindow):
         # Page 2: Logs View
         self.logs_page = LogsPage()
         self.logs_page.export_clicked.connect(self._export_events)
+        self.logs_page.load_more_clicked.connect(self._on_load_more_logs)
         self.pages.addWidget(self.logs_page)
+        
+        # Load initial events
+        self._load_initial_events()
         
         content_layout.addWidget(self.pages)
         main_layout.addWidget(content_area)
@@ -373,6 +378,11 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(object)
     def _on_frame_processed(self, result):
+        # Update performance stats
+        self.sidebar.perf_monitor.update_fps()
+        if hasattr(result, 'processing_time_ms'):
+            self.sidebar.perf_monitor.update_ai_time(result.processing_time_ms)
+            
         widget = self.camera_page.video_grid.get_widget(result.camera_name)
         if widget and result.frame is not None:
             display_frame = draw_detections(result.frame, result.detections)
@@ -418,12 +428,89 @@ class MainWindow(QMainWindow):
         self.logs_page.logs_list.insertItem(0, log_item)
         self.logs_page.logs_list.setItemWidget(log_item, log_widget)
         
+        # Limit log items to prevent UI lag/memory bloat
+        if self.logs_page.logs_list.count() > 200:
+            self.logs_page.logs_list.takeItem(self.logs_page.logs_list.count() - 1)
+        
         # Update log count
         self.logs_page.update_count(self.logs_page.logs_list.count())
         
         # Save event using async StorageWorker
         if self._storage_worker:
             self._storage_worker.add_task(detection, frame)
+            # When new event is added, we should logically increase offset 
+            # if we want 'Load More' to stay consistent. But since it's at top, 
+            # it's tricky. For now, we just update UI.
+            self._logs_offset += 1 
+
+    def _load_initial_events(self):
+        """Loads first 20 events from DB on startup."""
+        try:
+            from src.core.database.repositories.event_repository import EventRepository
+            repo = EventRepository()
+            events = repo.get_recent_events(limit=20)
+            
+            from .dashboard.widgets import ActivityItem
+            
+            for event in reversed(events): 
+                # (id, event_type, object_label, confidence, snapshot_path, identification_method, created_at)
+                label = event[2] or "Unknown"
+                time_str = event[6]
+                is_known = label not in ["Naməlum", "Unknown", "Naməlum Şəxs"]
+                camera_name = "" # Snapshot path usually has camera name but we don't parse it here
+                
+                # Add to activity feed
+                item = QListWidgetItem()
+                widget = ActivityItem(label, time_str, is_known, camera_name)
+                item.setSizeHint(widget.sizeHint())
+                self.home_page.activity_feed.insertItem(0, item)
+                self.home_page.activity_feed.setItemWidget(item, widget)
+                
+                # Add to logs page
+                log_item = QListWidgetItem()
+                log_widget = ActivityItem(label, time_str, is_known, camera_name)
+                log_item.setSizeHint(log_widget.sizeHint())
+                self.logs_page.logs_list.insertItem(0, log_item)
+                self.logs_page.logs_list.setItemWidget(log_item, log_widget)
+            
+            self.logs_page.update_count(self.logs_page.logs_list.count())
+            self._logs_offset = len(events)
+            logger.info(f"Loaded {len(events)} initial events into UI")
+        except Exception as e:
+            logger.error(f"Failed to load initial events: {e}")
+
+    def _on_load_more_logs(self):
+        """Loads more logs from DB using offset."""
+        try:
+            from src.core.database.repositories.event_repository import EventRepository
+            repo = EventRepository()
+            limit = 50
+            
+            events = repo.get_events_paginated(limit=limit, offset=self._logs_offset)
+            if not events:
+                self.logs_page.btn_load_more.setEnabled(False)
+                self.logs_page.btn_load_more.setText("Başqa qeyd yoxdur")
+                return
+            
+            from .dashboard.widgets import ActivityItem
+            
+            for event in events:
+                label = event[2] or "Unknown"
+                time_str = event[6]
+                is_known = label not in ["Naməlum", "Unknown", "Naməlum Şəxs"]
+                camera_name = ""
+                
+                item = QListWidgetItem()
+                widget = ActivityItem(label, time_str, is_known, camera_name)
+                item.setSizeHint(widget.sizeHint())
+                self.logs_page.logs_list.addItem(item) # Add to bottom
+                self.logs_page.logs_list.setItemWidget(item, widget)
+            
+            self._logs_offset += len(events)
+            self.logs_page.update_count(self.logs_page.logs_list.count())
+            logger.info(f"Loaded {len(events)} more logs (Total Loaded: {self._logs_offset})")
+        except Exception as e:
+            logger.error(f"Failed to load more logs: {e}")
         
         self._update_stats()
         

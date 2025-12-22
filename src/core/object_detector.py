@@ -14,6 +14,30 @@ from src.core.detection import Detection, DetectionType
 logger = get_logger()
 
 
+def get_global_track_id(camera_index: int, local_track_id: int) -> int:
+    """
+    Multi-camera track ID namespacing.
+    
+    Problem: Kamera1 track_id=5, Kamera2 track_id=5 -> konflikt
+    Həll: Camera-specific prefix
+    
+    Args:
+        camera_index: Kamera indeksi (0, 1, 2, ...)
+        local_track_id: YOLO-dan gələn lokal track ID
+        
+    Returns:
+        Qlobal unikal track ID
+        
+    Examples:
+        Kamera 0, track 5 -> 5
+        Kamera 1, track 5 -> 100005
+        Kamera 2, track 5 -> 200005
+    """
+    if local_track_id < 0:
+        return local_track_id  # Invalid track ID-ləri dəyişmə
+    return camera_index * 100000 + local_track_id
+
+
 class ObjectDetector:
     """
     YOLO-based Object Detection.
@@ -73,13 +97,14 @@ class ObjectDetector:
             logger.error(f"Failed to load YOLO: {e}")
             raise
     
-    def detect(self, frame: np.ndarray, use_tracking: bool = True) -> List[Detection]:
+    def detect(self, frame: np.ndarray, use_tracking: bool = True, camera_index: int = 0) -> List[Detection]:
         """
         Frame-də obyektləri aşkarlayır.
         
         Args:
             frame: BGR frame
             use_tracking: YOLO tracking istifadə etmək (track_id üçün)
+            camera_index: Kamera indeksi (multi-camera track ID namespacing üçün)
             
         Returns:
             Detection siyahısı
@@ -112,9 +137,11 @@ class ObjectDetector:
                     conf = float(box.conf[0])
                     
                     # Track ID (if available from tracking)
+                    # Apply global namespacing for multi-camera support
                     track_id = -1
                     if use_tracking and box.id is not None:
-                        track_id = int(box.id[0])
+                        local_track_id = int(box.id[0])
+                        track_id = get_global_track_id(camera_index, local_track_id)
                     
                     detection = Detection(
                         type=self.CLASS_NAMES.get(cls_id, DetectionType.UNKNOWN),

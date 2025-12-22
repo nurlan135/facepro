@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt, QSize, pyqtSignal
 from src.ui.styles import COLORS
 from src.utils.i18n import tr
 from src.utils.helpers import get_app_root
+from src.ui.components.performance_monitor import PerformanceMonitor
 
 
 class SidebarWidget(QWidget):
@@ -159,6 +160,12 @@ class SidebarWidget(QWidget):
         self.btn_exit.setProperty("class", "logout_btn")
         self.btn_exit.clicked.connect(self.exit_clicked.emit)
         layout.addWidget(self.btn_exit)
+        
+        layout.addSpacing(15)
+        
+        # Performance Monitor
+        self.perf_monitor = PerformanceMonitor()
+        layout.addWidget(self.perf_monitor)
     
     def update_stats(self, faces_count: int, detections_count: int):
         """Update statistics display."""

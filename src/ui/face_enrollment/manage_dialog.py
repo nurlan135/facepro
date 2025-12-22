@@ -186,6 +186,10 @@ class ManageFacesDialog(QDialog):
         
         if reply == QMessageBox.StandardButton.Yes:
             if self._user_repo.delete_user(user_id):
+                # Audit Log
+                from src.utils.audit_logger import get_audit_logger
+                get_audit_logger().log("PERSON_DELETED", {"user_id": user_id})
+                
                 self._load_persons()
             else:
                 QMessageBox.warning(self, "Xəta", "Silinmə zamanı xəta baş verdi.")
@@ -290,6 +294,10 @@ class EditEncodingsDialog(QDialog):
         if reply == QMessageBox.StandardButton.Yes:
             try:
                 if self._embedding_repo.delete_embedding(table, enc_id):
+                    # Audit Log
+                    from src.utils.audit_logger import get_audit_logger
+                    get_audit_logger().log("ENCODING_DELETED", {"user_id": self.user_id, "type": self.encoding_type, "id": enc_id})
+                    
                     self._load_encodings()
                 else:
                     QMessageBox.warning(self, "Xəta", "Silinmə uğursuz oldu.")

@@ -220,42 +220,53 @@ class CameraPage(QWidget):
         action_layout.addStretch()
         
         # Grid Controls
-        btn_1x1 = QPushButton("⊞")
-        btn_1x1.setToolTip("1x1 Grid")
-        btn_1x1.setFixedSize(36, 36)
-        btn_1x1.setStyleSheet(f"""
+        grid_btn_style = f"""
             QPushButton {{
                 background-color: {COLORS['surface']};
                 color: {COLORS['text_primary']};
                 border: 1px solid {COLORS['border']};
                 border-radius: 6px;
-                font-size: 16px;
+                font-size: 11px;
+                font-weight: bold;
             }}
             QPushButton:hover {{
                 background-color: {COLORS['surface_light']};
+                border-color: {COLORS['primary']};
             }}
-        """)
-        btn_1x1.clicked.connect(lambda: self.video_grid.set_columns(1))
+            QPushButton:pressed {{
+                background-color: {COLORS['primary']};
+                color: white;
+            }}
+        """
         
-        btn_2x2 = QPushButton("⊞⊞")
-        btn_2x2.setToolTip("2x2 Grid")
-        btn_2x2.setFixedSize(44, 36)
-        btn_2x2.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {COLORS['surface']};
-                color: {COLORS['text_primary']};
-                border: 1px solid {COLORS['border']};
-                border-radius: 6px;
-                font-size: 14px;
-            }}
-            QPushButton:hover {{
-                background-color: {COLORS['surface_light']};
-            }}
-        """)
-        btn_2x2.clicked.connect(lambda: self.video_grid.set_columns(2))
+        btn_1x1 = QPushButton("1×1")
+        btn_1x1.setToolTip("1 Kamera (Tam Ekran)")
+        btn_1x1.setFixedSize(40, 36)
+        btn_1x1.setStyleSheet(grid_btn_style)
+        btn_1x1.clicked.connect(lambda: self.video_grid.set_layout_preset(1))
+        
+        btn_2x2 = QPushButton("2×2")
+        btn_2x2.setToolTip("4 Kamera Grid")
+        btn_2x2.setFixedSize(40, 36)
+        btn_2x2.setStyleSheet(grid_btn_style)
+        btn_2x2.clicked.connect(lambda: self.video_grid.set_layout_preset(2))
+        
+        btn_3x3 = QPushButton("3×3")
+        btn_3x3.setToolTip("9 Kamera Grid")
+        btn_3x3.setFixedSize(40, 36)
+        btn_3x3.setStyleSheet(grid_btn_style)
+        btn_3x3.clicked.connect(lambda: self.video_grid.set_layout_preset(3))
+        
+        btn_4x4 = QPushButton("4×4")
+        btn_4x4.setToolTip("16 Kamera Grid")
+        btn_4x4.setFixedSize(40, 36)
+        btn_4x4.setStyleSheet(grid_btn_style)
+        btn_4x4.clicked.connect(lambda: self.video_grid.set_layout_preset(4))
         
         action_layout.addWidget(btn_1x1)
         action_layout.addWidget(btn_2x2)
+        action_layout.addWidget(btn_3x3)
+        action_layout.addWidget(btn_4x4)
         
         panel_layout.addLayout(action_layout)
         

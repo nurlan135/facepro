@@ -18,7 +18,7 @@ from src.utils.i18n import tr, set_language
 
 # Modular tabs
 from src.ui.settings.tabs import (
-    GeneralTab, CamerasTab, AITab, NotificationsTab, StorageTab
+    GeneralTab, CamerasTab, AITab, NotificationsTab, StorageTab, AuditTab
 )
 
 logger = get_logger()
@@ -55,6 +55,7 @@ class SettingsDialog(QDialog):
         self.ai_tab = AITab()
         self.notifications_tab = NotificationsTab()
         self.storage_tab = StorageTab()
+        self.audit_tab = AuditTab()
         
         # Add tabs
         self.tabs.addTab(self.general_tab, tr('tab_general'))
@@ -62,6 +63,7 @@ class SettingsDialog(QDialog):
         self.tabs.addTab(self.ai_tab, tr('tab_ai'))
         self.tabs.addTab(self.notifications_tab, tr('tab_notifications'))
         self.tabs.addTab(self.storage_tab, tr('tab_storage'))
+        self.tabs.addTab(self.audit_tab, tr('tab_audit'))
         
         layout.addWidget(self.tabs)
         
@@ -91,15 +93,37 @@ class SettingsDialog(QDialog):
         self.ai_tab.load_settings(self._config)
         self.notifications_tab.load_settings(self._config)
         self.storage_tab.load_settings(self._config)
+        self.audit_tab.load_settings(self._config)
     
     def _apply_settings(self):
         """Ayarları tətbiq edir."""
-        # Collect settings from all tabs
-        self._config.update(self.general_tab.get_settings())
-        self._config.update(self.ai_tab.get_settings())
-        self._config.update(self.notifications_tab.get_settings())
-        self._config.update(self.storage_tab.get_settings())
+        from PyQt6.QtWidgets import QMessageBox
+        from src.utils.config_models import AppConfig
+        from pydantic import ValidationError
         
+        # New temp config to validate
+        new_config = self._config.copy()
+        
+        # Collect settings from all tabs
+        new_config.update(self.general_tab.get_settings())
+        new_config.update(self.ai_tab.get_settings())
+        new_config.update(self.notifications_tab.get_settings())
+        new_config.update(self.storage_tab.get_settings())
+        
+        # Validate with Pydantic
+        try:
+            AppConfig(**new_config)
+            # If valid, update original config
+            self._config = new_config
+        except ValidationError as e:
+            error_msg = "\n".join([f"- {err['loc'][0]}: {err['msg']}" for err in e.errors()])
+            QMessageBox.warning(
+                self, 
+                tr('error'), 
+                f"Konfiqurasiya yoxlanışı uğursuz oldu:\n{error_msg}"
+            )
+            return
+            
         # Get cameras
         self._cameras = self.cameras_tab.get_cameras()
         
@@ -107,12 +131,16 @@ class SettingsDialog(QDialog):
         save_config(self._config)
         save_cameras(self._cameras)
         
+        # Audit Log
+        from src.utils.audit_logger import get_audit_logger
+        get_audit_logger().log("SETTINGS_CHANGE", {"tabs_updated": "all"})
+        
         # Trigger live language update
         new_language = self.general_tab.get_language_code()
         set_language(new_language)
         
         self.settings_saved.emit()
-        logger.info("Settings saved")
+        logger.info("Settings saved and validated")
     
     def _save_and_close(self):
         """Ayarları saxla və bağla."""

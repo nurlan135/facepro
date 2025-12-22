@@ -42,7 +42,24 @@ class GeneralTab(QWidget):
         app_layout.addRow("", self.minimize_tray_check)
         
         layout.addWidget(app_group)
+        
+        # Maintenance Section
+        maint_group = QGroupBox("Baxım (Maintenance)")
+        maint_layout = QVBoxLayout(maint_group)
+        
+        self.btn_backup_dialog = QPushButton(f"📁 {tr('btn_backup_restore') if tr('btn_backup_restore') != 'btn_backup_restore' else 'Backup və Geri Yükləmə'}")
+        self.btn_backup_dialog.setProperty("class", "secondary")
+        self.btn_backup_dialog.clicked.connect(self._open_backup_dialog)
+        maint_layout.addWidget(self.btn_backup_dialog)
+        
+        layout.addWidget(maint_group)
         layout.addStretch()
+    
+    def _open_backup_dialog(self):
+        """Backup dialoqunu açır."""
+        from src.ui.settings.dialogs.backup_dialog import BackupDialog
+        dialog = BackupDialog(self)
+        dialog.exec()
     
     def load_settings(self, config: Dict[str, Any]):
         """Ayarları yükləyir."""

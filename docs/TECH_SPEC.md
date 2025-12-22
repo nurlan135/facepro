@@ -21,6 +21,14 @@ To prevent the GUI from freezing, the application MUST use `QThread` for all hea
     *   Handles all Disk I/O (Snapshots) and DB Inserts (Events & Embeddings).
     *   Receives tasks via `Queue` to ensure non-blocking AI pipeline.
 
+### 1.2. Internationalization (i18n)
+* **Format:** JSON files in `locales/` (`en.json`, `az.json`, `ru.json`).
+* **Mechanism:**
+    *   `Translator` singleton loads JSON on startup.
+    *   UI components subscribe to `language_changed` signal.
+    *   Dynamic text updates without app restart (mostly).
+*   **Validation:** Pydantic models validate JSON structure.
+
 ## 2. The AI Pipeline Logic (Service-Driven)
 The AI processing follows this sequential logic, delegated to services:
 
@@ -36,11 +44,17 @@ The AI processing follows this sequential logic, delegated to services:
     * **IF** Person detected: Crop the person's image -> Proceed to Recognition.
 
 3.  **Identity Resolution [RecognitionService]:**
-    * **Step A: Face Recognition:**
-        * Check if face is visible and clear.
+    * **Step A: Face Quality Check [FaceQualityService]:**
+        * Validate Image Size (> 64x64px).
+        * Blur Detection (Laplacian Variance, Threshold: 100).
+        * Brightness Check (Not too dark/bright).
+    * **Step B: Face Recognition (InsightFace):**
+        * Backend: `ArcFace (ResNet100)` -> 512d Embedding.
+        * Compare with 512d vectors in `EmbeddingRepository`.
+        * Threshold: > 0.6 (Confidence).
         * If Match Found (e.g., "Ali"):
             * **Passive Enrollment:** Extract the *Body Embedding* and update profile via `StorageWorker`.
-    * **Step B: Body Re-ID & Gait [MatchingService]:**
+    * **Step C: Body Re-ID & Gait [MatchingService]:**
         * If face is NOT visible, extract Body/Gait Embedding.
         * Compare with stored vectors in `MatchingService` (Cosine Similarity).
         * Threshold: > 0.75 (Confidence).
@@ -61,6 +75,15 @@ The AI processing follows this sequential logic, delegated to services:
     * `AT+CMGF=1` (Set Text Mode)
     * `AT+CMGS="+99450xxxxxxx"` (Send SMS)
 
+### 3.3. Backup & Restore
+* **Format:** ZIP Archive containing:
+    *   `facepro.db` (SQLite Database)
+    *   `config/*.json` (Settings)
+    *   `data/faces/` (Face Images)
+    *   `backup_meta.json` (Version info)
+*   **Process:** Background thread (`BackupWorker`) prevents GUI freeze.
+*   **Restore:** Validates structure before overwriting current data.
+
 ## 4. Error Handling
 * **RTSP Failures:** Do not crash. Log error, show "Reconnecting..." overlay on UI, and retry indefinitely.
 * **Model Loading:** If GPU is missing, silently fallback to CPU mode.
@@ -73,9 +96,9 @@ The AI processing follows this sequential logic, delegated to services:
 3. **Session Management:** Track login time, auto-logout after configurable timeout (default 30 min).
 
 ### 5.2. Password Security
-* **Hashing:** SHA-256 with unique salt per user
-* **Storage:** `password_hash` and `salt` stored separately in database
-* **Verification:** `SHA256(input_password + stored_salt) == stored_hash`
+* **Hashing:** `bcrypt` (Legacy SHA-256 supported for smooth migration)
+* **Storage:** `password_hash` (salt embedded in hash for bcrypt)
+* **Verification:** `bcrypt.checkpw(password, hash)`
 
 ### 5.3. Account Lockout
 * **Trigger:** 3 consecutive failed login attempts
@@ -96,3 +119,26 @@ The AI processing follows this sequential logic, delegated to services:
 * **Default:** 30 minutes of inactivity
 * **Configurable:** 5-120 minutes (Admin only)
 * **Action:** Auto-logout, stop camera streams, return to login screen
+
+### 5.6. Audit Trail
+*   **Purpose:** Track administrative actions for security and accountability.
+*   **Events Logged:**
+    *   Authentication: `LOGIN`, `LOGOUT`, `LOGIN_FAILED`.
+    *   User Management: `USER_CREATED`, `USER_DELETED`, `PASSWORD_CHANGED`.
+    *   Enrollment: `FACE_ENROLLED`, `FACE_DELETED`, `PERSON_DELETED`.
+    *   System: `SETTINGS_CHANGE`, `BACKUP_CREATED`, `DATABASE_RESTORED`.
+*   **Storage:** `audit_logs` table.
+*   **Access:** Visible only to Admins via "Audit Logs" tab.
+
+## 6. Database & Migrations
+*   **Engine:** SQLite (`data/db/facepro.db`).
+*   **Migration System:**
+    *   Migrations stored in `migrations/` folder (e.g., `004_add_audit_logs.sql`).
+    *   `schema_migrations` table tracks applied versions.
+    *   Automated migration on app startup via `MigrationRunner`.
+*   **Key Tables:**
+    *   `users`: Registered identities.
+    *   `face_encodings`: 512d InsightFace vectors.
+    *   `events`: Detection history (snapshot paths).
+    *   `audit_logs`: Administrative action history.
+    *   `app_users`: Login credentials (bcrypt hashed).

@@ -23,6 +23,7 @@ from src.ui.styles import DARK_THEME, COLORS
 from src.core.database.repositories.user_repository import UserRepository
 from src.core.database.repositories.embedding_repository import EmbeddingRepository
 from src.core.face_recognizer import FaceRecognizer
+from src.core.services.face_quality_service import FaceQualityService
 
 logger = get_logger()
 
@@ -66,6 +67,7 @@ class FaceEnrollmentDialog(QDialog):
         self._user_repo = UserRepository()
         self._embedding_repo = EmbeddingRepository()
         self._face_recognizer = FaceRecognizer()
+        self._quality_service = FaceQualityService()
         
         # State
         self._current_frame: Optional[np.ndarray] = None
@@ -244,9 +246,17 @@ class FaceEnrollmentDialog(QDialog):
                 self.status_lbl.setStyleSheet("color: #f39c12;")
                 self._enable_retake(True)
                 return
+            
+            # 2. Quality Check
+            is_good, q_msg, q_score = self._quality_service.check_quality(image)
+            if not is_good:
+                self.status_lbl.setText(f"❌ {q_msg}")
+                self.status_lbl.setStyleSheet("color: #e74c3c;")
+                self._enable_retake(True)
+                return
                 
             self._face_encoding = encodings[0]
-            self.status_lbl.setText("✅ Üz aşkarlandı! Məlumatları daxil edin.")
+            self.status_lbl.setText(f"✅ Üz aşkarlandı! (Keyfiyyət score: {q_score:.0f})")
             self.status_lbl.setStyleSheet("color: #2ecc71;")
             
             self._enable_retake(True)
@@ -297,6 +307,10 @@ class FaceEnrollmentDialog(QDialog):
             
             # 2. DB-yə yaz
             self._save_to_database(name, self._face_encoding, filepath)
+            
+            # Audit Log
+            from src.utils.audit_logger import get_audit_logger
+            get_audit_logger().log("FACE_ENROLLED", {"name": name, "path": filepath})
             
             QMessageBox.information(self, "Uğurlu", "Şəxs uğurla əlavə edildi!")
             self.accept()

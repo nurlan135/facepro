@@ -21,6 +21,7 @@ import bcrypt
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from src.core.database.repositories.app_user_repository import AppUserRepository
+from src.utils.audit_logger import get_audit_logger
 
 
 @dataclass
@@ -138,6 +139,7 @@ class AuthManager(QObject):
                 return False, "Username already exists"
             
             if self._repo.create_user(username, password_hash, salt, role):
+                get_audit_logger().log("USER_CREATED", {"username": username, "role": role})
                 return True, "Account created successfully"
             return False, "Failed to create account"
             
@@ -216,6 +218,7 @@ class AuthManager(QObject):
                     return False, "Cannot delete the last administrator"
             
             if self._repo.delete_user(user_id):
+                get_audit_logger().log("USER_DELETED", {"user_id": user_id, "username": user['username']})
                 return True, "Account deleted successfully"
             return False, "Delete failed"
             
@@ -264,6 +267,7 @@ class AuthManager(QObject):
                     login_time=datetime.now(),
                     last_activity=datetime.now()
                 )
+                get_audit_logger().log("LOGIN", {"username": username}, user_id=user['id'])
                 return True, "Login successful"
             else:
                 new_attempts = user['failed_attempts'] + 1
@@ -291,6 +295,9 @@ class AuthManager(QObject):
         Requirements: 7.1, 7.2, 7.3
         """
         if self._current_session is not None:
+            # Log the action
+            get_audit_logger().log("LOGOUT", {"username": self._current_session.username}, user_id=self._current_session.user_id)
+            
             # Clear session data
             self._current_session = None
             

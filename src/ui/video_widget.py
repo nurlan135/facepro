@@ -5,6 +5,7 @@ Video stream göstərmək üçün custom PyQt6 widget.
 from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING
+from enum import Enum
 
 # Optional imports for OpenCV and NumPy
 try:
@@ -31,6 +32,15 @@ from src.utils.helpers import cv2_to_qpixmap
 from src.ui.styles import COLORS
 
 
+class CameraStatus(Enum):
+    """Kamera bağlantı statusları."""
+    CONNECTED = "connected"
+    CONNECTING = "connecting"
+    RECONNECTING = "reconnecting"
+    FAILED = "failed"
+    OFFLINE = "offline"
+
+
 class VideoWidget(QLabel):
     """
     Video stream göstərmək üçün custom widget.
@@ -53,10 +63,16 @@ class VideoWidget(QLabel):
         
         self.camera_name = camera_name
         self._is_connected = False
+        self._is_active = False  # Aktiv kamera highlight
         self._show_overlay = True
         self._fps = 0
         self._last_frame_time = 0
         self._frame_count = 0
+        
+        # Camera status tracking
+        self._camera_status = CameraStatus.OFFLINE
+        self._reconnect_attempts = 0
+        self._max_reconnect_attempts = 5
         
         # Widget setup
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -77,6 +93,9 @@ class VideoWidget(QLabel):
         self._fps_timer = QTimer(self)
         self._fps_timer.timeout.connect(self._update_fps)
         self._fps_timer.start(1000)  # Hər saniyə
+    
+    # Signal for requesting manual reconnect
+    request_reconnect = pyqtSignal(str)  # camera_name
     
     def _show_placeholder(self):
         """Placeholder görüntü göstərir."""
@@ -130,8 +149,63 @@ class VideoWidget(QLabel):
         """
         self._is_connected = connected
         
-        if not connected:
+        if connected:
+            self._camera_status = CameraStatus.CONNECTED
+            self._reconnect_attempts = 0
+        else:
             self._show_placeholder()
+    
+    def set_camera_status(self, status: CameraStatus, attempt: int = 0, max_attempts: int = 5):
+        """
+        Kamera statusunu ayarlar və UI-ı yeniləyir.
+        
+        Args:
+            status: CameraStatus enum dəyəri
+            attempt: Cari reconnect cəhdi nömrəsi
+            max_attempts: Maksimum reconnect cəhdi
+        """
+        self._camera_status = status
+        self._reconnect_attempts = attempt
+        self._max_reconnect_attempts = max_attempts
+        
+        if status == CameraStatus.CONNECTED:
+            self._is_connected = True
+            # Status connected olduqda placeholder gizlədilir
+            
+        elif status == CameraStatus.CONNECTING:
+            self._is_connected = False
+            self.setText(f"📷 {self.camera_name}\n\n🔄 Qoşulur...")
+            self._apply_status_style("#3498db")  # Blue
+            
+        elif status == CameraStatus.RECONNECTING:
+            self._is_connected = False
+            self.setText(f"📷 {self.camera_name}\n\n🔄 Yenidən qoşulur...\nCəhd: {attempt}/{max_attempts}")
+            self._apply_status_style("#f39c12")  # Orange
+            
+        elif status == CameraStatus.FAILED:
+            self._is_connected = False
+            self.setText(f"📷 {self.camera_name}\n\n❌ Qoşulmaq mümkün olmadı\n\nKlik edərək yenidən cəhd edin")
+            self._apply_status_style("#e74c3c")  # Red
+            
+        elif status == CameraStatus.OFFLINE:
+            self._is_connected = False
+            self._show_placeholder()
+    
+    def _apply_status_style(self, border_color: str):
+        """Status-a görə border rəngi tətbiq edir."""
+        self.setStyleSheet(f"""
+            QLabel {{
+                background-color: {COLORS['bg_medium']};
+                border: 2px solid {border_color};
+                border-radius: 8px;
+                color: {COLORS['text_secondary']};
+                font-size: 14px;
+            }}
+        """)
+    
+    def get_camera_status(self) -> CameraStatus:
+        """Cari camera statusunu qaytarır."""
+        return self._camera_status
     
     def set_overlay_visible(self, visible: bool):
         """Overlay görünüşünü ayarlar."""
@@ -140,6 +214,37 @@ class VideoWidget(QLabel):
     def get_fps(self) -> int:
         """Cari FPS-i qaytarır."""
         return self._fps
+    
+    def set_active(self, active: bool):
+        """
+        Kameranı aktiv/passiv olaraq işarələyir.
+        Aktiv kamera vurğulanmış border ilə göstərilir.
+        
+        Args:
+            active: Aktiv olub-olmadığı
+        """
+        self._is_active = active
+        
+        if active:
+            self.setStyleSheet(f"""
+                QLabel {{
+                    background-color: {COLORS['bg_medium']};
+                    border: 3px solid {COLORS['primary']};
+                    border-radius: 8px;
+                }}
+            """)
+        else:
+            self.setStyleSheet(f"""
+                QLabel {{
+                    background-color: {COLORS['bg_medium']};
+                    border: 2px solid {COLORS['border']};
+                    border-radius: 8px;
+                }}
+            """)
+    
+    def is_active(self) -> bool:
+        """Kameranın aktiv olub-olmadığını qaytarır."""
+        return self._is_active
     
     def set_drawing_mode(self, enabled: bool):
         """Drawing rejimini aktivləşdirir."""
@@ -235,7 +340,19 @@ class VideoWidget(QLabel):
 class VideoGrid(QWidget):
     """
     Çoxlu kamera üçün grid görünüşü.
+    
+    Layout presetləri:
+        - LAYOUT_1X1: 1 kamera (tam ekran)
+        - LAYOUT_2X2: 4 kamera (2 sütun)
+        - LAYOUT_3X3: 9 kamera (3 sütun)
+        - LAYOUT_4X4: 16 kamera (4 sütun)
     """
+    
+    # Layout preset constants
+    LAYOUT_1X1 = 1
+    LAYOUT_2X2 = 2
+    LAYOUT_3X3 = 3
+    LAYOUT_4X4 = 4
     
     camera_selected = pyqtSignal(str)  # camera_name
     
@@ -249,6 +366,7 @@ class VideoGrid(QWidget):
         self._widgets: dict[str, VideoWidget] = {}
         self._layout = None
         self._columns = 2  # Default 2x2 grid
+        self._active_camera: str = None  # Aktiv kamera adı
         
         self._setup_ui()
     
@@ -314,6 +432,36 @@ class VideoGrid(QWidget):
         """Grid sütun sayını ayarlar."""
         self._columns = max(1, columns)
         self._reorganize_grid()
+    
+    def set_layout_preset(self, preset: int):
+        """
+        Layout preset-i tətbiq edir.
+        
+        Args:
+            preset: LAYOUT_1X1, LAYOUT_2X2, LAYOUT_3X3 və ya LAYOUT_4X4
+        """
+        if preset in [self.LAYOUT_1X1, self.LAYOUT_2X2, self.LAYOUT_3X3, self.LAYOUT_4X4]:
+            self.set_columns(preset)
+    
+    def set_active_camera(self, camera_name: str):
+        """
+        Aktiv kameranı təyin edir və vurğulayır.
+        
+        Args:
+            camera_name: Aktiv ediləcək kameranın adı
+        """
+        # Əvvəlki aktiv kameranın highlight-ını sil
+        if self._active_camera and self._active_camera in self._widgets:
+            self._widgets[self._active_camera].set_active(False)
+        
+        # Yeni aktiv kameranı təyin et
+        self._active_camera = camera_name
+        if camera_name and camera_name in self._widgets:
+            self._widgets[camera_name].set_active(True)
+    
+    def get_active_camera(self) -> Optional[str]:
+        """Aktiv kameranın adını qaytarır."""
+        return self._active_camera
     
     def _reorganize_grid(self):
         """Grid-i yenidən təşkil edir."""

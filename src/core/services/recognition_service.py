@@ -24,6 +24,12 @@ class RecognitionService:
     - Gait Recognition
     - Passive Enrollment dispatch
     """
+    
+    # Re-ID Passive Enrollment Constants
+    REID_SAMPLE_INTERVAL = 2.0       # saniyə - sampling intervalı
+    REID_MIN_SAMPLES = 10            # minimum sample sayı
+    REID_MAX_SAMPLES = 50            # maksimum sample sayı
+    
     def __init__(self, storage_worker):
         self._storage_worker = storage_worker
         
@@ -41,6 +47,10 @@ class RecognitionService:
         
         # Repository
         self._embedding_repo = EmbeddingRepository()
+        
+        # Per-user Re-ID sampling tracking
+        self._user_reid_samples: Dict[int, int] = {}      # user_id -> sample count
+        self._user_last_sample: Dict[int, float] = {}     # user_id -> timestamp
 
         logger.info("RecognitionService initialized")
 
@@ -116,10 +126,38 @@ class RecognitionService:
                     detection.confidence = gait_match.confidence
                     detection.identification_method = 'gait'
 
+    def _should_sample_reid(self, user_id: int) -> bool:
+        """
+        İstifadəçi üçün Re-ID sample götürülməli olub-olmadığını müəyyən edir.
+        
+        Time-based sampling:
+        - Hər REID_SAMPLE_INTERVAL saniyədə bir sample götür
+        - REID_MAX_SAMPLES-ə çatdıqda dayandır
+        
+        Args:
+            user_id: İstifadəçi ID-si
+            
+        Returns:
+            Sample götürülməli olub-olmadığı
+        """
+        now = time.time()
+        
+        # Max limitə çatdıqda sampling dayandır
+        current_count = self._user_reid_samples.get(user_id, 0)
+        if current_count >= self.REID_MAX_SAMPLES:
+            return False
+        
+        # Time-based sampling
+        last_sample = self._user_last_sample.get(user_id, 0)
+        if now - last_sample < self.REID_SAMPLE_INTERVAL:
+            return False
+        
+        return True
+
     def _passive_enrollment(self, frame: np.ndarray, detection: Detection, user_id: int, name: str):
         """Handles passive learning of Body and Gait features."""
-        # Body Re-ID Enrollment (Random sampling)
-        if np.random.random() < 0.05:
+        # Body Re-ID Enrollment (Time-based sampling)
+        if self._should_sample_reid(user_id):
             person_crop = crop_person(frame, detection.bbox)
             if person_crop is not None:
                 embedding = self._reid_engine.extract_embedding(person_crop)
@@ -128,7 +166,12 @@ class RecognitionService:
                     self._storage_worker.add_reid_task(user_id, embedding)
                     # Optimistic RAM Update via Matching Service
                     self._matching_service.add_reid_vector(user_id, name, embedding)
-                    logger.info(f"Passive Enrollment: Captured body for {name}")
+                    
+                    # Update counters
+                    self._user_reid_samples[user_id] = self._user_reid_samples.get(user_id, 0) + 1
+                    self._user_last_sample[user_id] = time.time()
+                    
+                    logger.info(f"Re-ID sample {self._user_reid_samples[user_id]}/{self.REID_MAX_SAMPLES} for {name}")
 
         # Gait Enrollment (Sequence based)
         if detection.track_id >= 0:

@@ -1,15 +1,22 @@
 """
 FacePro Telegram Notifier Module
 Telegram bot vasitəsilə real-time bildiriş göndərmə.
+
+Xüsusiyyətlər:
+- Rate limiting (spam qoruması)
+- Quiet hours (sakit saatlar)
+- Batch notifications (toplu bildirişlər)
 """
 
 import os
 import io
 import time
 import threading
-from typing import Optional, Tuple
-from datetime import datetime
+from typing import Optional, Tuple, List, Dict, Any
+from datetime import datetime, time as dt_time
 from queue import Queue, Empty
+from collections import deque
+from threading import Lock
 
 import requests
 import numpy as np
@@ -38,7 +45,7 @@ class TelegramNotifier:
     # Telegram API base URL
     API_BASE = "https://api.telegram.org/bot{token}/{method}"
     
-    # Rate limiting - daha az bildiriş, daha çox rahatlıq
+    # Rate limiting defaults
     MIN_INTERVAL_SECONDS = 30  # Eyni şəxs üçün 30 saniyə fasilə
     GLOBAL_INTERVAL_SECONDS = 10  # İstənilən bildiriş arası minimum 10 saniyə
     MAX_RETRIES = 3
@@ -58,8 +65,20 @@ class TelegramNotifier:
         self._last_notification_time: dict = {}  # {label: timestamp}
         self._last_any_notification = 0  # Son bildiriş vaxtı (global)
         
+        # Enhanced rate limiting with deque
+        self._message_times: deque = deque(maxlen=100)
+        self._rate_lock = Lock()
+        
+        # Batch notification for unknown persons
+        self._unknown_batch: List[Dict[str, Any]] = []
+        self._batch_timer: Optional[threading.Timer] = None
+        self._batch_lock = Lock()
+        
         # Notification preferences
         self._notify_known_persons = False  # Tanınmış şəxslər üçün bildiriş göndərilsin?
+        
+        # Load notification config
+        self._load_notification_config()
         
         # Async queue
         self._queue: Queue = Queue()
@@ -75,6 +94,56 @@ class TelegramNotifier:
             logger.info("TelegramNotifier initialized and enabled")
         else:
             logger.info("TelegramNotifier initialized but disabled (no token/chat_id)")
+    
+    def _load_notification_config(self):
+        """Load notification config from settings."""
+        config = load_config()
+        notif_config = config.get('notifications', {})
+        
+        self._max_per_minute = notif_config.get('max_per_minute', 10)
+        self._batch_unknown = notif_config.get('batch_unknown', True)
+        self._batch_interval = notif_config.get('batch_interval_seconds', 30)
+        self._quiet_hours_enabled = notif_config.get('quiet_hours_enabled', False)
+        self._quiet_start = self._parse_time(notif_config.get('quiet_hours_start', '23:00'))
+        self._quiet_end = self._parse_time(notif_config.get('quiet_hours_end', '07:00'))
+    
+    def _parse_time(self, time_str: str) -> dt_time:
+        """Parse HH:MM string to time object."""
+        try:
+            parts = time_str.split(':')
+            return dt_time(int(parts[0]), int(parts[1]))
+        except (ValueError, IndexError):
+            return dt_time(0, 0)
+    
+    def _is_quiet_hours(self) -> bool:
+        """Check if current time is within quiet hours."""
+        if not self._quiet_hours_enabled:
+            return False
+        
+        now = datetime.now().time()
+        
+        if self._quiet_start <= self._quiet_end:
+            # Normal range (e.g., 09:00 - 17:00)
+            return self._quiet_start <= now <= self._quiet_end
+        else:
+            # Overnight range (e.g., 23:00 - 07:00)
+            return now >= self._quiet_start or now <= self._quiet_end
+    
+    def _check_rate_limit(self) -> bool:
+        """Check if we can send a message (rate limiting)."""
+        current = time.time()
+        
+        with self._rate_lock:
+            # Remove messages older than 1 minute
+            while self._message_times and current - self._message_times[0] > 60:
+                self._message_times.popleft()
+            
+            if len(self._message_times) >= self._max_per_minute:
+                logger.warning("Rate limit reached (max per minute)")
+                return False
+            
+            self._message_times.append(current)
+            return True
     
     @classmethod
     def from_config(cls) -> 'TelegramNotifier':
@@ -289,7 +358,8 @@ class TelegramNotifier:
         label: str, 
         confidence: float,
         is_known: bool = False,
-        camera_name: str = "Camera"
+        camera_name: str = "Camera",
+        priority: str = "NORMAL"
     ):
         """
         Detection alert-i göndərir (async).
@@ -300,29 +370,107 @@ class TelegramNotifier:
             confidence: Əminlik faizi
             is_known: Tanınmış şəxs olub-olmadığı
             camera_name: Kamera adı
+            priority: Mesaj prioriteti ("NORMAL", "HIGH", "CRITICAL")
         """
         if not self._enabled:
             return
         
-        # Rate limiting (is_known parametri ilə)
-        if not self._should_send(f"{camera_name}:{label}", is_known):
-            logger.debug(f"Rate limited: {label}")
+        # Quiet hours check (Critical messages bypass quiet hours)
+        if self._is_quiet_hours() and priority != "CRITICAL":
+            logger.debug("Notification skipped: quiet hours")
             return
         
-        # Format timestamp
+        # Rate limit check (Global rate limit bypass for HIGH/CRITICAL)
+        if priority == "NORMAL" and not self._check_rate_limit():
+            return
+        
+        # Per-label rate limiting (Known persons or HIGH priority bypass per-label limit)
+        if not is_known and priority == "NORMAL":
+            if not self._should_send(f"{camera_name}:{label}", is_known):
+                logger.debug(f"Rate limited: {label}")
+                return
+        
+        # Batch unknown persons (Only NORMAL priority unknown persons are batched)
+        if not is_known and self._batch_unknown and priority == "NORMAL":
+            self._add_to_batch(frame, label, confidence, camera_name)
+            return
+        
+        # Send immediately
+        self._send_immediate_alert(frame, label, confidence, is_known, camera_name, priority)
+    
+    def _add_to_batch(self, frame: np.ndarray, label: str, confidence: float, camera_name: str):
+        """Add unknown detection to batch."""
+        with self._batch_lock:
+            self._unknown_batch.append({
+                'frame': frame.copy(),
+                'label': label,
+                'confidence': confidence,
+                'camera': camera_name,
+                'time': datetime.now()
+            })
+            
+            # Start batch timer if not already running
+            if self._batch_timer is None:
+                self._batch_timer = threading.Timer(self._batch_interval, self._send_batch)
+                self._batch_timer.daemon = True
+                self._batch_timer.start()
+    
+    def _send_batch(self):
+        """Send batched unknown detections."""
+        with self._batch_lock:
+            self._batch_timer = None
+            
+            if not self._unknown_batch:
+                return
+            
+            count = len(self._unknown_batch)
+            cameras = set(d['camera'] for d in self._unknown_batch)
+            
+            # Create summary message
+            message = f"🔔 <b>{count} naməlum şəxs aşkarlandı</b>\n\n"
+            message += f"📷 Kameralar: {', '.join(cameras)}\n"
+            message += f"⏰ Son {self._batch_interval} saniyə ərzində"
+            
+            # Use the most recent frame
+            latest = self._unknown_batch[-1]
+            
+            self._queue.put(('photo', {
+                'image': latest['frame'],
+                'caption': message
+            }))
+            
+            self._unknown_batch.clear()
+            logger.info(f"Batch notification sent: {count} detections")
+    
+    def _send_immediate_alert(
+        self, 
+        frame: np.ndarray, 
+        label: str, 
+        confidence: float,
+        is_known: bool,
+        camera_name: str,
+        priority: str = "NORMAL"
+    ):
+        """Send immediate alert (not batched)."""
         timestamp = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         
         # Status emoji
         if is_known:
             status = "✅ Tanınmış şəxs"
             emoji = "👤"
+        elif priority == "CRITICAL":
+            status = "🚨 TƏHLÜKƏ!"
+            emoji = "🆘"
         else:
             status = "⚠️ Naməlum şəxs"
             emoji = "🚨"
         
+        # Priority prefix
+        prio_prefix = f" [{priority}]" if priority != "NORMAL" else ""
+        
         # Caption formatı
         caption = (
-            f"{emoji} <b>FacePro Alert</b>\n\n"
+            f"{emoji} <b>FacePro Alert</b>{prio_prefix}\n\n"
             f"📷 <b>Kamera:</b> {camera_name}\n"
             f"👤 <b>Şəxs:</b> {label}\n"
             f"📊 <b>Əminlik:</b> {confidence:.0%}\n"

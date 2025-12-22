@@ -8,6 +8,17 @@ FacePro/
 ├── config/
 │   ├── settings.json       # App config (Telegram token, threshold, paths)
 │   └── cameras.json        # Saved camera list (RTSP URLs)
+├── locales/                # Internationalization (NEW)
+│   ├── _schema.json        # Translation JSON schema
+│   ├── az.json             # Azerbaijani
+│   ├── en.json             # English
+│   └── ru.json             # Russian
+├── migrations/             # Database Migrations (NEW)
+│   ├── 001_initial_schema.sql
+│   ├── 002_add_gait_embeddings.sql
+│   ├── 003_add_insightface_columns.sql
+│   ├── 004_add_audit_logs.sql
+│   └── runner.py           # Migration runner script
 ├── data/
 │   ├── db/
 │   │   └── facepro.db      # SQLite Database (Metadata)
@@ -47,7 +58,8 @@ FacePro/
 │   │       ├── __init__.py
 │   │       ├── detection_service.py    # Motion + YOLO
 │   │       ├── recognition_service.py  # Face + Re-ID + Gait
-│   │       └── matching_service.py     # In-memory vector matching
+│   │       ├── matching_service.py     # In-memory vector matching
+│   │       └── face_quality_service.py # Face image validation (NEW)
 │   ├── hardware/
 │   │   ├── __init__.py
 │   │   ├── gsm_modem.py    # Serial AT Commands wrapper
@@ -79,16 +91,20 @@ FacePro/
 │   │   │   ├── settings_dialog.py
 │   │   │   ├── dialogs/
 │   │   │   │   ├── camera_dialog.py
-│   │   │   │   └── camera_type_selector.py
+│   │   │   │   ├── camera_type_selector.py
+│   │   │   │   └── backup_dialog.py    # Backup & Restore UI (NEW)
 │   │   │   └── tabs/
 │   │   │       ├── ai_tab.py
 │   │   │       ├── cameras_tab.py
 │   │   │       ├── general_tab.py
 │   │   │       ├── notifications_tab.py
-│   │   │       └── storage_tab.py
+│   │   │       ├── storage_tab.py
+│   │   │       └── audit_tab.py        # Audit Logs Viewer (NEW)
 │   │   └── dashboard/       # Dashboard Components (Modular)
 │   │       ├── __init__.py
 │   │       ├── widgets.py   # ActivityItem, ActionCard
+│   │       ├── components/  # Reusable widgets (NEW)
+│   │       │   └── performance_monitor.py # CPU/RAM/GPU Monitor
 │   │       ├── sidebar.py   # SidebarWidget
 │   │       ├── home_page.py # HomePage (welcome, cards)
 │   │       ├── camera_page.py # CameraPage (video grid)
@@ -97,6 +113,9 @@ FacePro/
 │       ├── __init__.py
 │       ├── helpers.py      # Image conversion, config, paths
 │       ├── logger.py       # Centralized logging
+│       ├── audit_logger.py # Audit Trail logging (NEW)
+│       ├── backup_manager.py # Backup & Restore logic (NEW)
+│       ├── config_models.py # Pydantic config validation (NEW)
 │       ├── i18n.py         # Internationalization (EN, AZ, RU)
 │       ├── license_manager.py # Hardware-locked licensing
 │       └── auth_manager.py # User authentication (bcrypt)

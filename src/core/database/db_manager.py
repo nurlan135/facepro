@@ -4,6 +4,7 @@ import threading
 from typing import Optional
 from src.utils.logger import get_logger
 from src.utils.helpers import get_db_path
+from migrations.runner import MigrationRunner
 
 logger = get_logger()
 
@@ -32,7 +33,28 @@ class DatabaseManager:
         self.connection: Optional[sqlite3.Connection] = None
         self._connection_lock = threading.RLock()
         self._initialized = True
+        
+        # Run migrations on startup
+        self._run_migrations()
+        
         logger.info(f"DatabaseManager initialized with path: {self.db_path}")
+    
+    def _run_migrations(self):
+        """Auto-run pending migrations on startup"""
+        try:
+            runner = MigrationRunner(self.db_path)
+            pending = runner.get_pending_migrations()
+            
+            if pending:
+                logger.info(f"Checking database migrations... {len(pending)} pending.")
+                if runner.migrate():
+                    logger.info("Database migrations completed successfully.")
+                else:
+                    logger.error("Database migration failed!")
+            else:
+                logger.debug("Database schema is up to date.")
+        except Exception as e:
+            logger.error(f"Migration runner error: {e}")
 
     def get_connection(self) -> sqlite3.Connection:
         """
@@ -48,9 +70,6 @@ class DatabaseManager:
                     )
                     # Performance optimizations
                     self.connection.execute("PRAGMA foreign_keys = ON;")
-                    
-                    # Initialize Schema
-                    self._initialize_schema(self.connection)
                     
                     # Create cursor to execute PRAGMA journal_mode
                     cursor = self.connection.cursor()
