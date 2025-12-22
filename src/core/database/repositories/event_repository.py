@@ -29,6 +29,17 @@ class EventRepository:
              pass
         return success
     
+    def add_events(self, events_data: List[Tuple[str, str, float, str, str]]) -> bool:
+        """
+        Log multiple detection events in a single transaction.
+        Tuple sequence: (event_type, object_label, confidence, snapshot_path, identification_method)
+        """
+        query = """
+            INSERT INTO events (event_type, object_label, confidence, snapshot_path, identification_method)
+            VALUES (?, ?, ?, ?, ?)
+        """
+        return self.db.execute_many_write(query, events_data)
+    
     def get_recent_events(self, limit: int = 50) -> List[Tuple]:
         """Fetch recent events for UI display."""
         query = """

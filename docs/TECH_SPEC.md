@@ -3,46 +3,48 @@
 ## 1. System Architecture
 The application follows a modular **Model-View-Controller (MVC)** pattern adapted for a Desktop GUI application.
 
-### 1.1. Concurrency Model (Threading)
+### 1.1. Concurrency Model (Threading & Services)
 To prevent the GUI from freezing, the application MUST use `QThread` for all heavy operations:
 * **Main Thread (UI):** Handles PyQt6 event loop, button clicks, and image rendering.
 * **Camera Thread (`CameraWorker`):**
     * Connects to RTSP/Webcam using `cv2.VideoCapture`.
     * Maintains a specific FPS (e.g., 30 FPS) reading rate.
-    * Handles **Auto-Reconnect** logic (if frame is None for 5 seconds, release and reconnect).
+    * Handles **Auto-Reconnect** logic.
     * Emits `raw_frame_signal` to the AI Thread.
-* **AI Thread (`AIWorker`):**
-    * Receives frames from Camera Thread.
-    * Runs the detection pipeline (Motion -> YOLO -> Face -> Re-ID).
-    * Emits `processed_frame_signal` (with bounding boxes) back to Main Thread for display.
-* **Storage Thread (`StorageWorker`):**
-    *   Handles all Disk I/O (Snapshots) and DB Inserts.
-    *   Receives tasks via `Queue` to ensure non-blocking UI/AI.
+* **AI Thread (`AIWorker`) - The Orchestrator:**
+    *   **Role:** Coordinates the pipeline by calling specialized services.
+    *   **DetectionService:** Motion Detection and YOLO.
+    *   **RecognitionService:** Face, Re-ID, and Gait logic.
+    *   **MatchingService:** In-Memory Vector Operations.
+    *   Emits `processed_frame_signal` back to Main Thread.
+* **Storage Thread (`StorageWorker`) - Async I/O:**
+    *   Handles all Disk I/O (Snapshots) and DB Inserts (Events & Embeddings).
+    *   Receives tasks via `Queue` to ensure non-blocking AI pipeline.
 
-## 2. The AI Pipeline Logic (Critical)
-The AI processing must follow this sequential logic to save CPU/RAM:
+## 2. The AI Pipeline Logic (Service-Driven)
+The AI processing follows this sequential logic, delegated to services:
 
-1.  **Motion Detection (Gatekeeper):**
+1.  **Motion Detection (Gatekeeper) [DetectionService]:**
     * Convert frame to Grayscale -> Gaussian Blur.
     * Calculate `cv2.absdiff` with background.
     * **IF** motion pixels < Threshold: Skip AI, return frame immediately.
     * **ELSE**: Proceed to Object Detection.
 
-2.  **Object Detection (YOLOv8n - Quantized):**
-    * Model: `yolov8n.pt` (Exported to ONNX or used with `int8` quantization if available).
+2.  **Object Detection (YOLOv8n) [DetectionService]:**
+    * Model: `yolov8n.pt`.
     * Classes: Filter only `Person (0)`, `Cat (15)`, `Dog (16)`.
-    * **IF** Person detected: Crop the person's image -> Proceed to Face/Re-ID.
+    * **IF** Person detected: Crop the person's image -> Proceed to Recognition.
 
-3.  **Identity Resolution (Hybrid Re-ID):**
-    * **Step A: Face Recognition (dlib/face_recognition):**
+3.  **Identity Resolution [RecognitionService]:**
+    * **Step A: Face Recognition:**
         * Check if face is visible and clear.
         * If Match Found (e.g., "Ali"):
-            * **Passive Enrollment:** Extract the *Body Embedding* of this frame using EfficientNet-B0 and update "Ali's" profile in `reid_embeddings` table. This keeps the body model up-to-date with current clothing.
-    * **Step B: Body Re-ID (If Face Failed):**
-        * If face is NOT visible, extract Body Embedding.
-        * Compare with stored embeddings in DB using **Cosine Similarity**.
+            * **Passive Enrollment:** Extract the *Body Embedding* and update profile via `StorageWorker`.
+    * **Step B: Body Re-ID & Gait [MatchingService]:**
+        * If face is NOT visible, extract Body/Gait Embedding.
+        * Compare with stored vectors in `MatchingService` (Cosine Similarity).
         * Threshold: > 0.75 (Confidence).
-        * If Match: Label as "Ali (Re-ID)".
+        * If Match: Label as "Ali (Re-ID)" or "Ali (Gait)".
 
 ## 3. Hardware & Storage Specs
 

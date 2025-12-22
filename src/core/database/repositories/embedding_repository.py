@@ -15,14 +15,20 @@ class EmbeddingRepository:
         self.db = DatabaseManager()
 
     # ================= Face Encodings =================
+    # Supports both dlib (128d) and InsightFace (512d) embeddings
+    
+    # Dimension constants
+    DLIB_DIM = 128      # dlib/face_recognition
+    INSIGHTFACE_DIM = 512  # InsightFace/ArcFace
     
     def add_face_encoding(self, user_id: int, encoding: np.ndarray):
-        """Save a face encoding (128d vector) to DB."""
+        """
+        Save a face encoding to DB.
+        Supports both dlib (128d) and InsightFace (512d) embeddings.
+        """
         query = "INSERT INTO face_encodings (user_id, encoding) VALUES (?, ?)"
-        # Default to float32 for storage efficiency if model allows, but usually dlib produces float64.
-        # We store as providing, but it's good practice to stick to one. 
-        # Existing code handles both. We'll store what we get.
-        blob = encoding.tobytes()
+        # Store as float32 for efficiency (InsightFace uses float32, dlib uses float64)
+        blob = encoding.astype(np.float32).tobytes()
         return self.db.execute_write(query, (user_id, blob))
 
     def get_all_face_encodings(self) -> List[Tuple[int, np.ndarray]]:
@@ -34,21 +40,25 @@ class EmbeddingRepository:
         rows = self.db.execute_read(query)
         encodings = []
         
-        expected_size_f64 = 128 * 8
-        expected_size_f32 = 128 * 4
+        # Supported sizes (float32 and float64 for both dimensions)
+        expected_sizes = {
+            self.DLIB_DIM * 4: (self.DLIB_DIM, np.float32),       # 128d float32
+            self.DLIB_DIM * 8: (self.DLIB_DIM, np.float64),       # 128d float64
+            self.INSIGHTFACE_DIM * 4: (self.INSIGHTFACE_DIM, np.float32),  # 512d float32
+            self.INSIGHTFACE_DIM * 8: (self.INSIGHTFACE_DIM, np.float64),  # 512d float64
+        }
 
         for uid, blob in rows:
             try:
-                if len(blob) == expected_size_f64:
-                    arr = np.frombuffer(blob, dtype=np.float64).copy()
-                elif len(blob) == expected_size_f32:
-                    arr = np.frombuffer(blob, dtype=np.float32).copy()
+                blob_size = len(blob)
+                if blob_size in expected_sizes:
+                    dim, dtype = expected_sizes[blob_size]
+                    arr = np.frombuffer(blob, dtype=dtype).copy()
+                    encodings.append((uid, arr))
                 else:
-                    # Possibly legacy or corrupt. Skip or log.
-                    continue
-                encodings.append((uid, arr))
-            except Exception:
-                pass
+                    logger.warning(f"Unknown face encoding size: {blob_size} bytes for user {uid}")
+            except Exception as e:
+                logger.error(f"Error reading face encoding for user {uid}: {e}")
         return encodings
 
     def get_all_face_encodings_with_names(self) -> List[Tuple[int, str, np.ndarray]]:
@@ -64,20 +74,25 @@ class EmbeddingRepository:
         rows = self.db.execute_read(query)
         results = []
         
-        expected_size_f64 = 128 * 8
-        expected_size_f32 = 128 * 4
+        # Supported sizes (float32 and float64 for both dimensions)
+        expected_sizes = {
+            self.DLIB_DIM * 4: (self.DLIB_DIM, np.float32),
+            self.DLIB_DIM * 8: (self.DLIB_DIM, np.float64),
+            self.INSIGHTFACE_DIM * 4: (self.INSIGHTFACE_DIM, np.float32),
+            self.INSIGHTFACE_DIM * 8: (self.INSIGHTFACE_DIM, np.float64),
+        }
 
         for uid, name, blob in rows:
             try:
-                if len(blob) == expected_size_f64:
-                    arr = np.frombuffer(blob, dtype=np.float64).copy()
-                elif len(blob) == expected_size_f32:
-                    arr = np.frombuffer(blob, dtype=np.float32).copy()
+                blob_size = len(blob)
+                if blob_size in expected_sizes:
+                    dim, dtype = expected_sizes[blob_size]
+                    arr = np.frombuffer(blob, dtype=dtype).copy()
+                    results.append((uid, name, arr))
                 else:
-                    continue
-                results.append((uid, name, arr))
-            except Exception:
-                pass
+                    logger.warning(f"Unknown face encoding size: {blob_size} bytes for user {name}")
+            except Exception as e:
+                logger.error(f"Error reading face encoding for user {name}: {e}")
         return results
 
     # ================= Re-ID Embeddings =================
@@ -91,6 +106,22 @@ class EmbeddingRepository:
         # Ensure float32 for ReID/EfficientNet
         blob = vector.astype(np.float32).tobytes()
         self.db.execute_write(query, (user_id, blob, confidence))
+
+    def add_reid_embeddings(self, embeddings_data: List[Tuple[int, np.ndarray, float]]) -> bool:
+        """
+        Batch save Re-ID embeddings.
+        Input: List of (user_id, numpy_vector, confidence)
+        """
+        if not embeddings_data:
+            return True
+            
+        params_list = []
+        for uid, vec, conf in embeddings_data:
+            blob = vec.astype(np.float32).tobytes()
+            params_list.append((uid, blob, conf))
+            
+        query = "INSERT INTO reid_embeddings (user_id, vector, confidence) VALUES (?, ?, ?)"
+        return self.db.execute_many_write(query, params_list)
 
     def get_all_reid_embeddings(self) -> List[Tuple[int, int, np.ndarray]]:
         """
@@ -132,30 +163,52 @@ class EmbeddingRepository:
     # ================= Gait Embeddings =================
 
     def add_gait_embedding(self, user_id: int, embedding: np.ndarray, confidence: float = 1.0):
-        """Save Gait vector with FIFO limit (Max 10 per user)."""
-        # Check count
-        count_query = "SELECT COUNT(*) FROM gait_embeddings WHERE user_id = ?"
-        res = self.db.execute_read(count_query, (user_id,))
-        count = res[0][0] if res else 0
-        
-        MAX_EMBEDDINGS = 10
-        if count >= MAX_EMBEDDINGS:
-            # Delete oldest
-            delete_query = """
-                DELETE FROM gait_embeddings WHERE id IN (
-                    SELECT id FROM gait_embeddings WHERE user_id = ? 
-                    ORDER BY captured_at ASC LIMIT ?
-                )
-            """
-            to_delete = count - MAX_EMBEDDINGS + 1
-            self.db.execute_write(delete_query, (user_id, to_delete))
-
-        query = """
-            INSERT INTO gait_embeddings (user_id, embedding, confidence)
-            VALUES (?, ?, ?)
-        """
+        """Save Gait vector with FIFO limit (Max 10 per user). Atomic Transaction."""
         blob = embedding.astype(np.float32).tobytes()
-        return self.db.execute_insert(query, (user_id, blob, confidence))
+        
+        # Manually manage connection and lock to ensure atomicity of the sequence
+        with self.db._connection_lock:
+            conn = self.db.get_connection()
+            try:
+                cursor = conn.cursor()
+                
+                # 1. Check Count
+                count_query = "SELECT COUNT(*) FROM gait_embeddings WHERE user_id = ?"
+                cursor.execute(count_query, (user_id,))
+                res = cursor.fetchone()
+                count = res[0] if res else 0
+                
+                MAX_EMBEDDINGS = 10
+                
+                # 2. Delete Oldest if limit reached
+                if count >= MAX_EMBEDDINGS:
+                    # SQLite doesn't support LIMIT in DELETE directly in all versions, 
+                    # so we use subquery logic which is standard.
+                    delete_query = """
+                        DELETE FROM gait_embeddings WHERE id IN (
+                            SELECT id FROM gait_embeddings WHERE user_id = ? 
+                            ORDER BY captured_at ASC LIMIT ?
+                        )
+                    """
+                    to_delete = count - MAX_EMBEDDINGS + 1
+                    cursor.execute(delete_query, (user_id, to_delete))
+                
+                # 3. Insert New
+                insert_query = """
+                    INSERT INTO gait_embeddings (user_id, embedding, confidence)
+                    VALUES (?, ?, ?)
+                """
+                cursor.execute(insert_query, (user_id, blob, confidence))
+                row_id = cursor.lastrowid
+                
+                conn.commit()
+                cursor.close()
+                return row_id
+                
+            except Exception as e:
+                conn.rollback()
+                logger.error(f"Failed to add gait embedding (Transaction): {e}")
+                return None
 
     def get_all_gait_embeddings(self) -> List[Tuple[int, np.ndarray]]:
         """

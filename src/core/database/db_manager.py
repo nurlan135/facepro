@@ -188,6 +188,27 @@ class DatabaseManager:
                 logger.error(f"Database write error: {e} | Query: {query}")
                 return False
 
+    def execute_many_write(self, query: str, params_list: list) -> bool:
+        """
+        Thread-safe helper for batch write operations using executemany.
+        Faster for bulk inserts.
+        """
+        if not params_list:
+            return True
+            
+        with self._connection_lock:
+            conn = self.get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.executemany(query, params_list)
+                conn.commit()
+                cursor.close()
+                return True
+            except sqlite3.Error as e:
+                conn.rollback()
+                logger.error(f"Database batch error: {e} | Query: {query}")
+                return False
+
     def execute_insert(self, query: str, params: tuple = ()) -> Optional[int]:
         """
         Execute INSERT and return lastrowid.
@@ -241,4 +262,3 @@ class DatabaseManager:
             except sqlite3.Error as e:
                 logger.error(f"Database read error: {e} | Query: {query}")
                 return [], []
-

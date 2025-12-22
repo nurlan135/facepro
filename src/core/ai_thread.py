@@ -1,7 +1,7 @@
 """
 FacePro AI Thread Module
-AI processing pipeline üçün QThread.
-Motion Detection -> Object Detection -> Face Recognition -> Re-ID -> Gait
+AI processing pipeline - Orchestrator using Services.
+Motion Detection -> Object Detection -> Recognition Service
 """
 
 import time
@@ -12,35 +12,33 @@ import numpy as np
 from PyQt6.QtCore import QThread, pyqtSignal, QMutex, QMutexLocker
 
 from src.utils.logger import get_logger
-from src.utils.helpers import crop_person
-from src.core.database.repositories.embedding_repository import EmbeddingRepository
-from src.utils.i18n import tr
 
 # Modular imports
 from src.core.detection import Detection, DetectionType, FrameResult
-from src.core.motion_detector import MotionDetector
-from src.core.object_detector import ObjectDetector
-from src.core.face_recognizer import FaceRecognizer
-from src.core.reid_engine import get_reid_engine
-from src.core.gait_engine import get_gait_engine
-from src.core.gait_buffer import GaitBufferManager
-from src.core.gait_types import GaitMatch
+from src.core.storage_worker import StorageWorker
+
+# Services
+from src.core.services.recognition_service import RecognitionService
+from src.core.services.detection_service import DetectionService
 
 logger = get_logger()
 
 
 class AIWorker(QThread):
     """
-    AI Processing Pipeline Thread.
+    AI Processing Pipeline Thread (Orchestrator).
+    Delegates complex logic to dedicated services.
     
     Signals:
-        frame_processed: Emal olunmuş frame (FrameResult)
-        detection_alert: Yeni detection alert-i (Detection, frame)
+        frame_processed: Processed frame result (FrameResult)
+        detection_alert: New detection alert (Detection, frame)
+        event_saved_signal: Relay for storage worker
     """
     
     frame_processed = pyqtSignal(object)  # FrameResult
     detection_alert = pyqtSignal(object, np.ndarray)  # Detection, frame
-    
+    event_saved_signal = pyqtSignal(int) # Signal to relay storage worker event
+
     def __init__(self, parent=None):
         super().__init__(parent)
         
@@ -49,45 +47,26 @@ class AIWorker(QThread):
         self._mutex = QMutex()
         self._frame_buffer: Optional[Tuple[np.ndarray, str]] = None
 
-        # AI components
-        self._motion_detector = MotionDetector()
-        self._object_detector = ObjectDetector()
-        self._face_recognizer = FaceRecognizer()
-        self._reid_engine = get_reid_engine()
+        # Async Workers
+        self._storage_worker = StorageWorker()
+        self._storage_worker.event_saved.connect(self.event_saved_signal.emit)
         
-        # Gait Recognition components
-        self._gait_engine = get_gait_engine()
-        self._gait_buffer = GaitBufferManager()
-        self._gait_enrollment_buffer = GaitBufferManager()
+        # Services
+        self._detection_service = DetectionService()
+        self._recognition_service = RecognitionService(self._storage_worker)
         
-        # Repositories
-        self._embedding_repo = EmbeddingRepository()
-        
-        # Caches
-        self._reid_embeddings: List[Tuple[int, int, str, np.ndarray]] = []
-        self._gait_embeddings: List[Tuple[int, int, str, np.ndarray]] = []
-        
-        # Matrix Caches for Vectorization
-        self._reid_matrix: Optional[np.ndarray] = None
-        self._gait_matrix: Optional[np.ndarray] = None
-        
-        self._camera_rois: Dict[str, List[Tuple[float, float]]] = {}
-        self._skip_motion_check = False
-        
-        logger.info("AIWorker initialized")
+        logger.info("AIWorker (Orchestrator) initialized")
     
     def run(self):
-        """Thread-in əsas döngüsü."""
+        """Main Thread Loop."""
         self._running = True
         logger.info("AI thread started")
         
-        try:
-            loaded = self._face_recognizer.load_from_database()
-            logger.info(f"Loaded {loaded} known faces from database")
-            self._load_reid_embeddings()
-            self._load_gait_embeddings()
-        except Exception as e:
-            logger.error(f"Failed to load faces/embeddings: {e}")
+        # Start Async Workers
+        self._storage_worker.start()
+
+        # Initialize Services
+        self._recognition_service.load_data()
         
         while self._running:
             if self._paused:
@@ -110,306 +89,110 @@ class AIWorker(QThread):
                 result = self._process_frame(frame, camera_name)
                 self.frame_processed.emit(result)
                 
+                # Check for High-Confidence Person Alerts
                 for detection in result.detections:
                     if detection.type == DetectionType.PERSON:
                         detection.camera_name = camera_name
                         self.detection_alert.emit(detection, frame)
+                        self._storage_worker.add_event_task(detection, frame)
                 
-                self._gait_buffer.cleanup_stale()
-                self._gait_enrollment_buffer.cleanup_stale()
+                # Periodic Cleanup
+                self._recognition_service.cleanup_buffers()
+                
             except Exception as e:
                 logger.error(f"Frame processing error: {e}")
         
+        self._storage_worker.stop()
         logger.info("AI thread stopped")
     
     def _process_frame(self, frame: np.ndarray, camera_name: str) -> FrameResult:
-        """Frame-i emal edir."""
+        """Single Frame Processing Pipeline."""
         start_time = time.time()
         result = FrameResult(frame=frame.copy(), camera_name=camera_name)
         
-        if not self._skip_motion_check:
-            motion = self._motion_detector.detect(frame)
-            result.motion_detected = motion
-            if not motion:
-                result.processing_time_ms = (time.time() - start_time) * 1000
-                return result
-        else:
-            result.motion_detected = True
+        # 1. Detection Service (Motion + Objects + ROI)
+        motion_detected, detections = self._detection_service.detect(frame, camera_name)
+        result.motion_detected = motion_detected
         
-        detections = self._object_detector.detect(frame)
-        final_detections = []
-        roi_points = self._camera_rois.get(camera_name)
+        if not motion_detected:
+            result.processing_time_ms = (time.time() - start_time) * 1000
+            return result
         
+        # 2. Recognition Service (Face + ReID + Gait)
         for detection in detections:
-            if roi_points and not self._is_inside_roi(self._get_center(detection.bbox, frame.shape), roi_points):
-                continue
             if detection.type == DetectionType.PERSON:
-                self._process_person(frame, detection)
-            final_detections.append(detection)
+                self._recognition_service.process_identity(frame, detection)
         
-        result.detections = final_detections
+        result.detections = detections
         result.processing_time_ms = (time.time() - start_time) * 1000
         return result
-
-    def _process_person(self, frame: np.ndarray, detection: Detection):
-        """Person detection-ı emal edir."""
-        name, user_id, confidence, face_visible, face_bbox = self._face_recognizer.recognize(frame, detection.bbox)
-        detection.face_visible = face_visible
-        detection.face_bbox = face_bbox
-        
-        if name:
-            detection.label = name
-            detection.is_known = True
-            detection.confidence = confidence
-            detection.identification_method = 'face'
-            
-            if user_id:
-                self._passive_reid_enrollment(frame, detection.bbox, user_id, name)
-                if detection.track_id >= 0:
-                    self._passive_gait_enrollment(frame, detection.bbox, user_id, detection.track_id)
-        else:
-            detection.label = "Unknown"
-            reid_matched = False
-            
-            person_crop = crop_person(frame, detection.bbox)
-            if person_crop is not None:
-                current_embedding = self._reid_engine.extract_embedding(person_crop)
-                if current_embedding is not None and self._reid_embeddings:
-                    # Use caching matrix
-                    match = self._reid_engine.compare_embeddings(
-                        current_embedding, 
-                        self._reid_embeddings,
-                        stored_matrix=self._reid_matrix
-                    )
-                    if match:
-                        detection.label = f"{match.user_name} (Re-ID)"
-                        detection.is_known = True
-                        detection.confidence = match.confidence
-                        detection.identification_method = 'reid'
-                        reid_matched = True
-            
-            if not reid_matched and detection.track_id >= 0:
-                gait_match = self._try_gait_recognition(frame, detection.bbox, detection.track_id)
-                if gait_match:
-                    detection.label = f"{gait_match.user_name} (Gait: {gait_match.confidence:.0%})"
-                    detection.is_known = True
-                    detection.confidence = gait_match.confidence
-                    detection.identification_method = 'gait'
     
-    def _passive_reid_enrollment(self, frame: np.ndarray, bbox: Tuple[int, int, int, int], user_id: int, name: str):
-        """Passive Re-ID enrollment."""
-        if np.random.random() >= 0.05:
-            return
-        person_crop = crop_person(frame, bbox)
-        if person_crop is None:
-            return
-        embedding = self._reid_engine.extract_embedding(person_crop)
-        if embedding is not None:
-            self._save_reid_embedding(user_id, name, embedding)
-    
-    def _try_gait_recognition(self, frame: np.ndarray, bbox: Tuple[int, int, int, int], track_id: int) -> Optional[GaitMatch]:
-        """Gait recognition cəhdi."""
-        try:
-            silhouette = self._gait_engine.extract_silhouette(frame, bbox)
-            if silhouette is None or silhouette.size == 0:
-                return None
-            
-            is_buffer_full = self._gait_buffer.add_frame(track_id, silhouette)
-            if is_buffer_full:
-                sequence = self._gait_buffer.get_sequence(track_id)
-                if sequence:
-                    embedding = self._gait_engine.extract_embedding(sequence)
-                    if embedding is not None and self._gait_embeddings:
-                        # Use caching matrix
-                        return self._gait_engine.compare_embeddings(
-                            embedding, 
-                            self._gait_embeddings,
-                            stored_matrix=self._gait_matrix
-                        )
-            return None
-        except Exception as e:
-            logger.error(f"Gait recognition failed: {e}")
-            return None
+    # ================= Helper Methods =================
 
-    def _passive_gait_enrollment(self, frame: np.ndarray, bbox: Tuple[int, int, int, int], user_id: int, track_id: int):
-        """Passive gait enrollment."""
-        try:
-            silhouette = self._gait_engine.extract_silhouette(frame, bbox)
-            if silhouette is None or silhouette.size == 0:
-                return
-            
-            enrollment_key = user_id * 10000 + (track_id % 10000)
-            is_buffer_full = self._gait_enrollment_buffer.add_frame(enrollment_key, silhouette)
-            
-            if is_buffer_full:
-                sequence = self._gait_enrollment_buffer.get_sequence(enrollment_key)
-                if sequence:
-                    embedding = self._gait_engine.extract_embedding(sequence)
-                    if embedding is not None:
-                        embedding_id = self._embedding_repo.add_gait_embedding(user_id, embedding)
-                        if embedding_id:
-                            user_name = self._get_user_name(user_id)
-                            if user_name:
-                                self._gait_embeddings.append((embedding_id, user_id, user_name, embedding))
-                                
-                                # Update Matrix Cache
-                                if self._gait_matrix is None:
-                                    self._gait_matrix = np.vstack([embedding])
-                                else:
-                                    self._gait_matrix = np.vstack([self._gait_matrix, embedding])
-                                    
-                                logger.info(f"Passive Gait Enrollment: Saved for {user_name}")
-        except Exception as e:
-            logger.error(f"Passive gait enrollment failed: {e}")
-
-    def _get_user_name(self, user_id: int) -> Optional[str]:
-        """User ID-dən ad tapır."""
-        for _, uid, name, _ in self._gait_embeddings:
-            if uid == user_id:
-                return name
-        for name, uid in self._face_recognizer._name_to_id.items():
-            if uid == user_id:
-                return name
-        return None
-    
-    def _get_center(self, bbox: Tuple[int, int, int, int], shape: Tuple) -> Tuple[float, float]:
-        """Bbox mərkəzini normalize edir."""
-        x1, y1, x2, y2 = bbox
-        h, w = shape[:2]
-        return ((x1 + x2) / 2 / w, (y1 + y2) / 2 / h)
-    
-    def _is_inside_roi(self, point: Tuple[float, float], roi_points: List[Tuple[float, float]]) -> bool:
-        """Ray casting algorithm."""
-        x, y = point
-        inside = False
-        j = len(roi_points) - 1
-        for i in range(len(roi_points)):
-            xi, yi = roi_points[i]
-            xj, yj = roi_points[j]
-            if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / (yj - yi) + xi):
-                inside = not inside
-            j = i
-        return inside
-    
-    def _load_reid_embeddings(self):
-        """Database-dən Re-ID embedding-lərini yükləyir."""
-        try:
-            self._reid_embeddings = self._embedding_repo.get_reid_embeddings_with_names()
-            
-            # Build Matrix Cache
-            if self._reid_embeddings:
-                matrix_list = [item[3] for item in self._reid_embeddings]
-                self._reid_matrix = np.vstack(matrix_list)
-            else:
-                self._reid_matrix = None
-            
-            logger.info(f"Loaded {len(self._reid_embeddings)} Re-ID embeddings")
-        except Exception as e:
-            logger.error(f"Failed to load Re-ID embeddings: {e}")
-
-    def _save_reid_embedding(self, user_id: int, user_name: str, embedding: np.ndarray, confidence: float = 1.0):
-        """Re-ID embedding-i saxlayır."""
-        try:
-            if self._embedding_repo.add_reid_embedding(user_id, embedding, confidence):
-                self._reid_embeddings.append((0, user_id, user_name, embedding))
-                
-                # Update Matrix Cache
-                if self._reid_matrix is None:
-                    self._reid_matrix = np.vstack([embedding])
-                else:
-                    self._reid_matrix = np.vstack([self._reid_matrix, embedding])
-                    
-                logger.info(f"Passive Enrollment: Saved body embedding for {user_name}")
-        except Exception as e:
-            logger.error(f"Failed to save Re-ID embedding: {e}")
-
-    def _load_gait_embeddings(self):
-        """Database-dən Gait embedding-lərini yükləyir."""
-        try:
-            self._gait_embeddings = self._embedding_repo.get_gait_embeddings_with_names()
-            
-            # Build Matrix Cache
-            if self._gait_embeddings:
-                matrix_list = [item[3] for item in self._gait_embeddings]
-                self._gait_matrix = np.vstack(matrix_list)
-            else:
-                self._gait_matrix = None
-                
-            logger.info(f"Loaded {len(self._gait_embeddings)} Gait embeddings")
-        except Exception as e:
-            logger.error(f"Failed to load Gait embeddings: {e}")
+    def add_known_face(self, name: str, face_image: np.ndarray) -> bool:
+        """Forward to service."""
+        return self._recognition_service.add_known_face(name, face_image)
     
     def process_frame(self, frame: np.ndarray, camera_name: str = "Camera"):
-        """Emal üçün frame göndərir (async)."""
         with QMutexLocker(self._mutex):
             self._frame_buffer = (frame.copy(), camera_name)
-    
-    def add_known_face(self, name: str, face_image: np.ndarray) -> bool:
-        """Tanınmış üz əlavə edir."""
-        return self._face_recognizer.add_known_face(name, face_image)
-    
+
     def stop(self):
-        """Thread-i dayandırır."""
         self._running = False
         self.wait(5000)
     
     def pause(self):
-        """Thread-i pauzaya alır."""
         with QMutexLocker(self._mutex):
             self._paused = True
     
     def resume(self):
-        """Thread-i davam etdirir."""
         with QMutexLocker(self._mutex):
             self._paused = False
     
     def set_camera_roi(self, camera_name: str, points: List[Tuple[float, float]]):
-        """Kamera üçün ROI təyin edir."""
-        if points and len(points) >= 3:
-            self._camera_rois[camera_name] = points
-        elif camera_name in self._camera_rois:
-            del self._camera_rois[camera_name]
+        self._detection_service.set_roi(camera_name, points)
 
+# ================= Drawing Helper (Kept here for UI usage compatibility) =================
 
 def draw_detections(frame: np.ndarray, detections: List[Detection]) -> np.ndarray:
-    """Frame üzərinə detection-ları çəkir."""
     output = frame.copy()
     
     for det in detections:
+        draw_bbox = det.bbox
+        text_color = (255, 255, 255)
+        
         if det.type == DetectionType.PERSON:
+            draw_bbox = det.face_bbox if (det.face_visible and det.face_bbox) else det.bbox
             if det.is_known:
                 if det.identification_method == 'gait':
-                    color = (255, 0, 0)  # Mavi - bədən box
-                    draw_bbox = det.bbox
+                    color = (255, 0, 0)      # Blue (Gait)
+                    draw_bbox = det.bbox     # Gait is body-based
                 elif det.identification_method == 'reid':
-                    color = (0, 255, 255)  # Sarı - bədən box
-                    draw_bbox = det.bbox
-                else:
-                    # Face ilə tanınıb - üz box çək
-                    color = (0, 255, 0)  # Yaşıl
-                    draw_bbox = det.face_bbox if det.face_bbox else det.bbox
+                    color = (0, 255, 255)    # Yellow (Re-ID)
+                    draw_bbox = det.bbox     # Re-ID is body-based
+                else: 
+                    color = (0, 255, 0)      # Green (Face)
             else:
-                color = (0, 0, 255)  # Qırmızı - tanınmayıb
-                # Üz görünürsə üz box, yoxsa bədən box
-                draw_bbox = det.face_bbox if det.face_bbox else det.bbox
+                color = (0, 0, 255)          # Red (Unknown)
         elif det.type == DetectionType.CAT:
-            color = (255, 165, 0)
-            draw_bbox = det.bbox
+            color = (255, 165, 0)            # Orange
         elif det.type == DetectionType.DOG:
-            color = (255, 255, 0)
-            draw_bbox = det.bbox
+            color = (255, 255, 0)            # Cyan
         else:
-            color = (128, 128, 128)
-            draw_bbox = det.bbox
+            color = (128, 128, 128)          # Gray
         
         x1, y1, x2, y2 = draw_bbox
         cv2.rectangle(output, (x1, y1), (x2, y2), color, 2)
+        
         label = f"{det.label or det.type.value} ({det.confidence:.0%})"
         (label_w, label_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
-        # Fon rənginə görə yazı rəngini seç (açıq fon = qara yazı, tünd fon = ağ yazı)
+        
+        cv2.rectangle(output, (x1, y1 - label_h - 10), (x1 + label_w + 4, y1), color, -1)
+        
+        # Adaptive text color
         brightness = (color[0] + color[1] + color[2]) / 3
         text_color = (0, 0, 0) if brightness > 127 else (255, 255, 255)
-        cv2.rectangle(output, (x1, y1 - label_h - 10), (x1 + label_w + 4, y1), color, -1)
+        
         cv2.putText(output, label, (x1 + 2, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color, 2)
     
     return output
