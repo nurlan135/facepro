@@ -10,10 +10,10 @@ import cv2
 import numpy as np
 
 from src.utils.logger import get_logger
-from src.utils.helpers import get_db_path
+from src.utils.helpers import crop_person
+from src.core.database.repositories.embedding_repository import EmbeddingRepository
 
 logger = get_logger()
-
 
 class FaceRecognizer:
     """
@@ -30,181 +30,132 @@ class FaceRecognizer:
         self._tolerance = tolerance
         self._known_encodings: Dict[str, List[np.ndarray]] = {}  # {name: [encodings]}
         self._name_to_id: Dict[str, int] = {}  # {name: user_id}
+        self._embedding_repo = EmbeddingRepository()
         logger.info("FaceRecognizer created (lazy loading)")
-    
-    def _ensure_loaded(self):
-        """face_recognition kitabxanasını yükləyir."""
-        if self._face_recognition is not None:
-            return
+
+    def _load_library(self):
+        """Lazy load face_recognition library."""
+        if self._face_recognition is None:
+            try:
+                import face_recognition
+                self._face_recognition = face_recognition
+                logger.info("face_recognition library loaded")
+            except ImportError:
+                logger.error("face_recognition library not found!")
+                raise
+
+    def get_encodings(self, rgb_image: np.ndarray) -> List[np.ndarray]:
+        """Şəkildən üz vektorlarını çıxarır."""
+        self._load_library()
+        # Find faces
+        face_locations = self._face_recognition.face_locations(rgb_image)
+        if not face_locations:
+            return []
         
-        try:
-            import face_recognition
-            self._face_recognition = face_recognition
-            logger.info("face_recognition loaded")
-        except ImportError as e:
-            logger.error(f"face_recognition import failed: {e}")
-            raise
-    
-    def add_known_face(self, name: str, face_image: np.ndarray) -> bool:
+        # Compute encodings
+        encodings = self._face_recognition.face_encodings(rgb_image, face_locations)
+        return encodings
+
+    def recognize(self, frame: np.ndarray, bbox: Tuple[int, int, int, int]) -> Tuple[Optional[str], Optional[int], float, bool, Optional[Tuple]]:
         """
-        Tanınmış üz əlavə edir.
+        Person bbox daxilində üz tanımağa çalışır.
         
-        Args:
-            name: Şəxsin adı
-            face_image: Üz şəkli (BGR)
-            
         Returns:
-            Uğurlu olub-olmadığı
+            (name, user_id, confidence, face_visible, face_bbox)
         """
-        try:
-            self._ensure_loaded()
-            
-            # BGR -> RGB
-            rgb_image = cv2.cvtColor(face_image, cv2.COLOR_BGR2RGB)
-            
-            # Encoding çıxar
-            encodings = self._face_recognition.face_encodings(rgb_image)
-            
-            if not encodings:
-                logger.warning(f"No face found in image for: {name}")
-                return False
-            
-            if name not in self._known_encodings:
-                self._known_encodings[name] = []
-            
-            self._known_encodings[name].append(encodings[0])
-            logger.info(f"Face added for: {name}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to add face: {e}")
-            return False
-    
-    def recognize(self, frame: np.ndarray, person_bbox: Tuple[int, int, int, int]) -> Tuple[Optional[str], Optional[int], float, bool, Optional[Tuple[int, int, int, int]]]:
-        """
-        Frame-də üz tanıyır.
+        self._load_library()
         
-        Args:
-            frame: Tam frame
-            person_bbox: Şəxsin bounding box-u
-            
-        Returns:
-            (ad, user_id, confidence, üz_görünürmü, üz_bbox)
-            üz_bbox: (x1, y1, x2, y2) frame koordinatlarında
-        """
-        try:
-            self._ensure_loaded()
-            
-            # Person bölgəsini kəs
-            x1, y1, x2, y2 = person_bbox
-            person_crop = frame[y1:y2, x1:x2]
-            
-            if person_crop.size == 0:
-                return None, None, 0.0, False, None
-            
-            # RGB-ə çevir
-            rgb_crop = cv2.cvtColor(person_crop, cv2.COLOR_BGR2RGB)
-            
-            # Üz yerini tap
-            face_locations = self._face_recognition.face_locations(rgb_crop)
-            
-            if not face_locations:
-                return None, None, 0.0, False, None  # Üz görünmür
-            
-            # Üz encoding-i çıxar
-            face_encodings = self._face_recognition.face_encodings(rgb_crop, face_locations)
-            
-            # Üz koordinatlarını frame koordinatlarına çevir
-            # face_locations format: (top, right, bottom, left)
-            ft, fr, fb, fl = face_locations[0]
-            face_bbox = (x1 + fl, y1 + ft, x1 + fr, y1 + fb)
-            
-            if not face_encodings:
-                return None, None, 0.0, True, face_bbox  # Üz var amma encoding çıxmadı
-            
-            # Tanınmış üzlərlə müqayisə
-            best_match_name = None
-            best_distance = float('inf')
-            
-            for name, known_encs in self._known_encodings.items():
-                for known_enc in known_encs:
-                    distance = self._face_recognition.face_distance([known_enc], face_encodings[0])[0]
-                    
-                    if distance < best_distance:
-                        best_distance = distance
-                        best_match_name = name
-            
-            if best_match_name and best_distance <= self._tolerance:
-                confidence = 1.0 - best_distance
-                user_id = self._name_to_id.get(best_match_name)
-                return best_match_name, user_id, confidence, True, face_bbox
-            
-            return None, None, 0.0, True, face_bbox  # Üz var amma tanınmadı
-            
-        except Exception as e:
-            logger.error(f"Face recognition failed: {e}")
+        # 1. Person crop
+        person_img = crop_person(frame, bbox)
+        if person_img is None or person_img.size == 0:
             return None, None, 0.0, False, None
-    
+            
+        rgb_person = cv2.cvtColor(person_img, cv2.COLOR_BGR2RGB)
+        
+        # 2. Detect face in crop
+        face_locations = self._face_recognition.face_locations(rgb_person)
+        if not face_locations:
+            return None, None, 0.0, False, None
+            
+        # Get largest face
+        top, right, bottom, left = max(face_locations, key=lambda f: (f[2]-f[0]) * (f[1]-f[3]))
+        
+        # Calculate global face bbox (relative to original frame)
+        x1, y1, _, _ = bbox
+        face_bbox = (left + x1, top + y1, right + x1, bottom + y1)
+        
+        # 3. Get encoding
+        encodings = self._face_recognition.face_encodings(rgb_person, [(top, right, bottom, left)])
+        if not encodings:
+            return None, None, 0.0, True, face_bbox
+            
+        unknown_encoding = encodings[0]
+        
+        # 4. Compare with known faces
+        name = None
+        user_id = None
+        confidence = 0.0
+        
+        if self._known_encodings:
+            for known_name, known_list in self._known_encodings.items():
+                if not known_list:
+                    continue
+                
+                # Check distances
+                distances = self._face_recognition.face_distance(known_list, unknown_encoding)
+                min_dist = np.min(distances)
+                
+                if min_dist <= self._tolerance:
+                    # Found match
+                    score = 1.0 - min_dist
+                    if score > confidence:
+                        confidence = score
+                        name = known_name
+                        user_id = self._name_to_id.get(name)
+        
+        return name, user_id, confidence, True, face_bbox
+
     def load_from_database(self) -> int:
         """Database-dən bütün üzləri yükləyir."""
-        import sqlite3
-        import numpy as np
-        
-        db_path = get_db_path()
-        if not os.path.exists(db_path):
-            logger.warning("Database not found, no faces loaded")
-            return 0
-        
-        loaded_count = 0
-        
         try:
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
+            # Fetch from repository (handles deserialization)
+            rows = self._embedding_repo.get_all_face_encodings_with_names()
             
-            cursor.execute("""
-                SELECT u.name, u.id, fe.encoding
-                FROM users u
-                JOIN face_encodings fe ON u.id = fe.user_id
-            """)
+            loaded_count = 0
+            self._known_encodings.clear()
+            self._name_to_id.clear()
             
-            for name, user_id, encoding_blob in cursor.fetchall():
-                try:
-                    # Safe deserialization only - pickle removed for security
-                    # Face encodings are 128-dim float64 vectors from face_recognition library
-                    expected_size_f64 = 128 * 8  # float64 = 8 bytes (face_recognition default)
-                    expected_size_f32 = 128 * 4  # float32 = 4 bytes (our serialization)
-                    
-                    if len(encoding_blob) == expected_size_f32:
-                        encoding = np.frombuffer(encoding_blob, dtype=np.float32).copy()
-                    elif len(encoding_blob) == expected_size_f64:
-                        encoding = np.frombuffer(encoding_blob, dtype=np.float64).copy()
-                    else:
-                        logger.warning(
-                            f"Skipping encoding for {name}: invalid blob size {len(encoding_blob)}. "
-                            f"Expected {expected_size_f32} or {expected_size_f64} bytes. "
-                            f"If this is legacy pickle data, run the migration script."
-                        )
-                        continue
-                    
-                    if name not in self._known_encodings:
-                        self._known_encodings[name] = []
-                    
-                    self._known_encodings[name].append(encoding)
-                    self._name_to_id[name] = user_id
-                    loaded_count += 1
-                    
-                except Exception as e:
-                    logger.error(f"Failed to load encoding for {name}: {e}")
-            
-            conn.close()
+            for user_id, name, encoding in rows:
+                if name not in self._known_encodings:
+                    self._known_encodings[name] = []
+                
+                self._known_encodings[name].append(encoding)
+                self._name_to_id[name] = user_id
+                loaded_count += 1
             
             logger.info(f"Loaded {loaded_count} face encodings from database")
+            return loaded_count
             
         except Exception as e:
             logger.error(f"Failed to load faces from database: {e}")
-        
-        return loaded_count
+            return 0
     
+    def add_known_face(self, name: str, face_image: np.ndarray) -> bool:
+        """
+        Canlı öyrənmə üçün (əgər lazım olsa).
+        DB-yə artıq repository vasitəsilə yazırıq, bura sadəcə cache-i yeniləmək üçündür.
+        """
+        self._load_library()
+        rgb = cv2.cvtColor(face_image, cv2.COLOR_BGR2RGB)
+        encodings = self.get_encodings(rgb)
+        
+        if encodings:
+            if name not in self._known_encodings:
+                self._known_encodings[name] = []
+            self._known_encodings[name].append(encodings[0])
+            return True
+        return False
+
     @property
     def known_count(self) -> int:
         """Tanınmış şəxs sayı."""

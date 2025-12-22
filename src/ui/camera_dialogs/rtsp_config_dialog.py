@@ -500,30 +500,48 @@ class RTSPConfigDialog(QDialog):
         self._test_timer.start(500)
     
     def _run_connection_test(self):
-        """Background thread-də RTSP test."""
+        """Background thread-də RTSP test (TCP və UDP yoxlayır)."""
         self._test_result = None
         self._test_frame = None
         
-        try:
-            # RTSP üçün TCP
+        def try_connect(transport, timeout=10000):
             import os
-            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
+            # Force transport and increase probe size for difficult streams
+            opts = f"rtsp_transport;{transport}|analyzeduration;5000000|probesize;5000000"
+            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = opts
+            logger.info(f"Testing RTSP connection with {transport.upper()}...")
             
-            # FFMPEG backend-i məcbur et
             cap = cv2.VideoCapture(self._test_url)
-            cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 15000)
+            cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, timeout)
             
             if cap.isOpened():
-                ret, frame = cap.read()
+                # Try reading frames
+                for i in range(20):
+                    ret, frame = cap.read()
+                    if ret and frame is not None and frame.size > 0:
+                        cap.release()
+                        logger.info(f"Success with {transport.upper()} on frame {i+1}")
+                        return "success", frame
                 cap.release()
+                return "no_frame", None
+            return "failed", None
+
+        try:
+            # 1. Try TCP first (Stabil, preferred)
+            status, frame = try_connect("tcp")
+            
+            # 2. If TCP fails to get a frame (but connected), or failed to connect, try UDP
+            if status != "success":
+                logger.warning(f"TCP test failed ({status}), trying UDP...")
+                status_udp, frame_udp = try_connect("udp")
                 
-                if ret and frame is not None:
-                    self._test_result = "success"
-                    self._test_frame = frame
-                else:
-                    self._test_result = "no_frame"
-            else:
-                self._test_result = "failed"
+                # If UDP worked, use it
+                if status_udp == "success":
+                    status = status_udp
+                    frame = frame_udp
+            
+            self._test_result = status
+            self._test_frame = frame
                 
         except Exception as e:
             self._test_result = f"error:{str(e)[:50]}"
@@ -544,8 +562,18 @@ class RTSPConfigDialog(QDialog):
             if self._test_frame is not None:
                 self._show_preview(self._test_frame)
         elif self._test_result == "no_frame":
-            self.test_status.setText("⚠️ Bağlandı, amma frame oxuna bilmədi")
+            self.test_status.setText("⚠️ Bağlandı, amma kadr oxunmadı.")
             self.test_status.setStyleSheet(f"color: {COLORS['warning']}; font-size: 12px;")
+            QMessageBox.warning(
+                self, 
+                "Stream Xətası", 
+                "Kamera ilə əlaqə quruldu, lakin görüntü dekod edilə bilmir.\n\n"
+                "Mümkün həllər:\n"
+                "1. Kameranın ayarlarında 'Video Encoding' bölməsini 'H.264' edin (H.265 yox).\n"
+                "2. 'Smart Codec', 'H.264+', 'H.265+' kimi funksiyaları SÖNDÜRÜN.\n"
+                "3. Resolution ayarını yoxlayın (Lite rejimlər bəzən problem yaradır. 1280x720 tövsiyə edilir).\n"
+                "4. Şəbəkənin sabit olduğundan əmin olun."
+            )
         elif self._test_result == "failed":
             self.test_status.setText("❌ Bağlantı uğursuz")
             self.test_status.setStyleSheet(f"color: {COLORS['danger']}; font-size: 12px;")

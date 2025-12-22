@@ -197,34 +197,64 @@ class ReIDEngine:
     def compare_embeddings(
         self, 
         query_embedding: np.ndarray, 
-        stored_embeddings: List[Tuple[int, int, str, np.ndarray]]
+        stored_embeddings: List[Tuple[int, int, str, np.ndarray]],
+        stored_matrix: Optional[np.ndarray] = None
     ) -> Optional[ReIDMatch]:
         """
-        Query embedding-i saxlanılan embedding-lərlə müqayisə edir.
+        Query embedding-i saxlanılan embedding-lərlə müqayisə edir (Vectorized).
         
         Args:
-            query_embedding: Sorğu embedding-i
-            stored_embeddings: [(embedding_id, user_id, user_name, embedding), ...] siyahısı
+            query_embedding: Sorğu embedding-i (1D array)
+            stored_embeddings: Metadata list [(embedding_id, user_id, user_name, embedding), ...]
+            stored_matrix: Opsional pre-built numpy matrix (N, D) sürət üçün.
+                           Əgər None olarsa, stored_embeddings-dən on-the-fly yaradılır.
             
         Returns:
             Ən yaxşı uyğunluq (ReIDMatch) və ya None
         """
-        best_match = None
-        best_score = 0.0
-        
-        for emb_id, user_id, user_name, stored_emb in stored_embeddings:
-            score = self.cosine_similarity(query_embedding, stored_emb)
+        if not stored_embeddings:
+            return None
+
+        try:
+            # 1. Prepare Matrix
+            if stored_matrix is not None:
+                matrix = stored_matrix
+            else:
+                # On-the-fly vectorization (still faster than python loop for large N)
+                # stored_embeddings[i][3] is vector
+                matrix_list = [item[3] for item in stored_embeddings]
+                matrix = np.vstack(matrix_list)
+
+            # 2. Vectorized Cosine Similarity
+            # Assuming query and database vectors are already L2 normalized!
+            # If they are normalized, Cosine Similarity == Dot Product.
+            # self.extract_embedding already normalizes outputs.
             
-            if score > best_score and score >= self._threshold:
-                best_score = score
-                best_match = ReIDMatch(
+            # query_embedding shape: (D,) -> (1, D) for matrix mul? 
+            # or just (D,) works with (N, D) -> (N,) result in numpy.
+            
+            scores = np.dot(matrix, query_embedding)
+            
+            # 3. Find Best Match
+            best_idx = np.argmax(scores)
+            best_score = float(scores[best_idx])
+            
+            if best_score >= self._threshold:
+                # Get metadata from list
+                emb_id, user_id, user_name, _ = stored_embeddings[best_idx]
+                
+                return ReIDMatch(
                     user_id=user_id,
                     user_name=user_name,
-                    confidence=score,
+                    confidence=best_score,
                     embedding_id=emb_id
                 )
-        
-        return best_match
+            
+            return None
+
+        except Exception as e:
+            logger.error(f"Vectorized comparison failed: {e}")
+            return None
     
     def set_threshold(self, threshold: float):
         """Uyğunluq threshold-unu ayarla (0-1)."""

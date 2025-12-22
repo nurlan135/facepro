@@ -35,6 +35,10 @@ COLORS = {
     # Status Colors
     'online': '#2ecc71',
     'offline': '#e74c3c',
+    
+    # Missing keys added
+    'secondary': '#64748B',     # Slate Gray
+    'unknown': '#7f8c8d',       # Concrete Gray
 }
 
 

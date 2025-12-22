@@ -15,6 +15,9 @@ To prevent the GUI from freezing, the application MUST use `QThread` for all hea
     * Receives frames from Camera Thread.
     * Runs the detection pipeline (Motion -> YOLO -> Face -> Re-ID).
     * Emits `processed_frame_signal` (with bounding boxes) back to Main Thread for display.
+* **Storage Thread (`StorageWorker`):**
+    *   Handles all Disk I/O (Snapshots) and DB Inserts.
+    *   Receives tasks via `Queue` to ensure non-blocking UI/AI.
 
 ## 2. The AI Pipeline Logic (Critical)
 The AI processing must follow this sequential logic to save CPU/RAM:

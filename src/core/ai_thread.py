@@ -11,12 +11,9 @@ import cv2
 import numpy as np
 from PyQt6.QtCore import QThread, pyqtSignal, QMutex, QMutexLocker
 
-import os
-import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-
 from src.utils.logger import get_logger
-from src.utils.helpers import crop_person, get_db_path
+from src.utils.helpers import crop_person
+from src.core.database.repositories.embedding_repository import EmbeddingRepository
 from src.utils.i18n import tr
 
 # Modular imports
@@ -63,9 +60,17 @@ class AIWorker(QThread):
         self._gait_buffer = GaitBufferManager()
         self._gait_enrollment_buffer = GaitBufferManager()
         
+        # Repositories
+        self._embedding_repo = EmbeddingRepository()
+        
         # Caches
         self._reid_embeddings: List[Tuple[int, int, str, np.ndarray]] = []
         self._gait_embeddings: List[Tuple[int, int, str, np.ndarray]] = []
+        
+        # Matrix Caches for Vectorization
+        self._reid_matrix: Optional[np.ndarray] = None
+        self._gait_matrix: Optional[np.ndarray] = None
+        
         self._camera_rois: Dict[str, List[Tuple[float, float]]] = {}
         self._skip_motion_check = False
         
@@ -170,7 +175,12 @@ class AIWorker(QThread):
             if person_crop is not None:
                 current_embedding = self._reid_engine.extract_embedding(person_crop)
                 if current_embedding is not None and self._reid_embeddings:
-                    match = self._reid_engine.compare_embeddings(current_embedding, self._reid_embeddings)
+                    # Use caching matrix
+                    match = self._reid_engine.compare_embeddings(
+                        current_embedding, 
+                        self._reid_embeddings,
+                        stored_matrix=self._reid_matrix
+                    )
                     if match:
                         detection.label = f"{match.user_name} (Re-ID)"
                         detection.is_known = True
@@ -210,7 +220,12 @@ class AIWorker(QThread):
                 if sequence:
                     embedding = self._gait_engine.extract_embedding(sequence)
                     if embedding is not None and self._gait_embeddings:
-                        return self._gait_engine.compare_embeddings(embedding, self._gait_embeddings)
+                        # Use caching matrix
+                        return self._gait_engine.compare_embeddings(
+                            embedding, 
+                            self._gait_embeddings,
+                            stored_matrix=self._gait_matrix
+                        )
             return None
         except Exception as e:
             logger.error(f"Gait recognition failed: {e}")
@@ -231,11 +246,18 @@ class AIWorker(QThread):
                 if sequence:
                     embedding = self._gait_engine.extract_embedding(sequence)
                     if embedding is not None:
-                        embedding_id = self._gait_engine.save_embedding(user_id, embedding)
+                        embedding_id = self._embedding_repo.add_gait_embedding(user_id, embedding)
                         if embedding_id:
                             user_name = self._get_user_name(user_id)
                             if user_name:
                                 self._gait_embeddings.append((embedding_id, user_id, user_name, embedding))
+                                
+                                # Update Matrix Cache
+                                if self._gait_matrix is None:
+                                    self._gait_matrix = np.vstack([embedding])
+                                else:
+                                    self._gait_matrix = np.vstack([self._gait_matrix, embedding])
+                                    
                                 logger.info(f"Passive Gait Enrollment: Saved for {user_name}")
         except Exception as e:
             logger.error(f"Passive gait enrollment failed: {e}")
@@ -271,20 +293,16 @@ class AIWorker(QThread):
     
     def _load_reid_embeddings(self):
         """Database-dən Re-ID embedding-lərini yükləyir."""
-        import sqlite3
         try:
-            conn = sqlite3.connect(get_db_path())
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT re.id, re.user_id, u.name, re.vector
-                FROM reid_embeddings re JOIN users u ON re.user_id = u.id
-            """)
-            for row in cursor.fetchall():
-                emb_id, user_id, user_name, blob = row
-                # Use safe deserialization from ReIDEngine
-                embedding = self._reid_engine.deserialize_embedding(blob)
-                self._reid_embeddings.append((emb_id, user_id, user_name, embedding))
-            conn.close()
+            self._reid_embeddings = self._embedding_repo.get_reid_embeddings_with_names()
+            
+            # Build Matrix Cache
+            if self._reid_embeddings:
+                matrix_list = [item[3] for item in self._reid_embeddings]
+                self._reid_matrix = np.vstack(matrix_list)
+            else:
+                self._reid_matrix = None
+            
             logger.info(f"Loaded {len(self._reid_embeddings)} Re-ID embeddings")
         except Exception as e:
             logger.error(f"Failed to load Re-ID embeddings: {e}")
@@ -292,24 +310,31 @@ class AIWorker(QThread):
     def _save_reid_embedding(self, user_id: int, user_name: str, embedding: np.ndarray, confidence: float = 1.0):
         """Re-ID embedding-i saxlayır."""
         try:
-            import sqlite3
-            self._reid_embeddings.append((0, user_id, user_name, embedding))
-            conn = sqlite3.connect(get_db_path())
-            cursor = conn.cursor()
-            # Use safe serialization from ReIDEngine
-            blob = self._reid_engine.serialize_embedding(embedding)
-            cursor.execute("INSERT INTO reid_embeddings (user_id, vector, confidence) VALUES (?, ?, ?)",
-                          (user_id, blob, confidence))
-            conn.commit()
-            conn.close()
-            logger.info(f"Passive Enrollment: Saved body embedding for {user_name}")
+            if self._embedding_repo.add_reid_embedding(user_id, embedding, confidence):
+                self._reid_embeddings.append((0, user_id, user_name, embedding))
+                
+                # Update Matrix Cache
+                if self._reid_matrix is None:
+                    self._reid_matrix = np.vstack([embedding])
+                else:
+                    self._reid_matrix = np.vstack([self._reid_matrix, embedding])
+                    
+                logger.info(f"Passive Enrollment: Saved body embedding for {user_name}")
         except Exception as e:
             logger.error(f"Failed to save Re-ID embedding: {e}")
 
     def _load_gait_embeddings(self):
         """Database-dən Gait embedding-lərini yükləyir."""
         try:
-            self._gait_embeddings = self._gait_engine.load_embeddings()
+            self._gait_embeddings = self._embedding_repo.get_gait_embeddings_with_names()
+            
+            # Build Matrix Cache
+            if self._gait_embeddings:
+                matrix_list = [item[3] for item in self._gait_embeddings]
+                self._gait_matrix = np.vstack(matrix_list)
+            else:
+                self._gait_matrix = None
+                
             logger.info(f"Loaded {len(self._gait_embeddings)} Gait embeddings")
         except Exception as e:
             logger.error(f"Failed to load Gait embeddings: {e}")

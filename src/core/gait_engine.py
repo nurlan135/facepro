@@ -201,21 +201,55 @@ class GaitEngine:
         except Exception:
             return 0.0
     
-    def compare_embeddings(self, query_embedding: np.ndarray, 
-                          stored_embeddings: List[Tuple[int, int, str, np.ndarray]]) -> Optional[GaitMatch]:
-        """Query embedding-i saxlanılan embedding-lərlə müqayisə edir."""
-        best_match = None
-        best_score = 0.0
+    def compare_embeddings(
+        self, 
+        query_embedding: np.ndarray, 
+        stored_embeddings: List[Tuple[int, int, str, np.ndarray]],
+        stored_matrix: Optional[np.ndarray] = None
+    ) -> Optional[GaitMatch]:
+        """
+        Query embedding-i saxlanılan embedding-lərlə müqayisə edir (Vectorized).
         
-        for emb_id, user_id, user_name, stored_emb in stored_embeddings:
-            score = self.cosine_similarity(query_embedding, stored_emb)
+        Args:
+            query_embedding: Sorğu embedding-i (1D array)
+            stored_embeddings: Metadata list [(embedding_id, user_id, user_name, embedding), ...]
+            stored_matrix: Opsional pre-built numpy matrix (N, D).
             
-            if score > best_score and score >= self._threshold:
-                best_score = score
-                best_match = GaitMatch(user_id=user_id, user_name=user_name, 
-                                       confidence=score, embedding_id=emb_id)
-        
-        return best_match
+        Returns:
+            Ən yaxşı uyğunluq (GaitMatch) və ya None
+        """
+        if not stored_embeddings:
+            return None
+            
+        try:
+            # 1. Prepare Matrix
+            if stored_matrix is not None:
+                matrix = stored_matrix
+            else:
+                matrix_list = [item[3] for item in stored_embeddings]
+                matrix = np.vstack(matrix_list)
+            
+            # 2. Vectorized Cosine Similarity (assuming normalized vectors)
+            scores = np.dot(matrix, query_embedding)
+            
+            # 3. Find Best Match
+            best_idx = np.argmax(scores)
+            best_score = float(scores[best_idx])
+            
+            if best_score >= self._threshold:
+                emb_id, user_id, user_name, _ = stored_embeddings[best_idx]
+                return GaitMatch(
+                    user_id=user_id, 
+                    user_name=user_name, 
+                    confidence=best_score, 
+                    embedding_id=emb_id
+                )
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Vectorized gait comparison failed: {e}")
+            return None
     
     def set_threshold(self, threshold: float):
         self._threshold = max(0.0, min(1.0, threshold))
@@ -257,102 +291,7 @@ class GaitEngine:
         
         return np.frombuffer(blob, dtype=np.float32).copy()
 
-    def save_embedding(self, user_id: int, embedding: np.ndarray, 
-                      confidence: float = 1.0, db_path: Optional[str] = None) -> Optional[int]:
-        """Gait embedding-i verilənlər bazasına saxlayır."""
-        import sqlite3
-        from src.utils.helpers import get_db_path
-        
-        if db_path is None:
-            db_path = get_db_path()
-        
-        try:
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            
-            embedding_blob = self.serialize_embedding(embedding)
-            
-            cursor.execute("SELECT COUNT(*) FROM gait_embeddings WHERE user_id = ?", (user_id,))
-            count = cursor.fetchone()[0]
-            
-            MAX_EMBEDDINGS_PER_USER = 10
-            if count >= MAX_EMBEDDINGS_PER_USER:
-                delete_count = count - MAX_EMBEDDINGS_PER_USER + 1
-                cursor.execute("""
-                    DELETE FROM gait_embeddings WHERE id IN (
-                        SELECT id FROM gait_embeddings WHERE user_id = ? 
-                        ORDER BY captured_at ASC LIMIT ?
-                    )
-                """, (user_id, delete_count))
-            
-            cursor.execute(
-                "INSERT INTO gait_embeddings (user_id, embedding, confidence) VALUES (?, ?, ?)",
-                (user_id, embedding_blob, confidence)
-            )
-            
-            embedding_id = cursor.lastrowid
-            conn.commit()
-            conn.close()
-            
-            logger.info(f"Gait embedding saved: user_id={user_id}, id={embedding_id}")
-            return embedding_id
-        except Exception as e:
-            logger.error(f"Failed to save gait embedding: {e}")
-            return None
-    
-    def load_embeddings(self, db_path: Optional[str] = None) -> List[Tuple[int, int, str, np.ndarray]]:
-        """Bütün gait embedding-ləri verilənlər bazasından yükləyir."""
-        import sqlite3
-        from src.utils.helpers import get_db_path
-        
-        if db_path is None:
-            db_path = get_db_path()
-        
-        embeddings = []
-        
-        try:
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                SELECT ge.id, ge.user_id, u.name, ge.embedding
-                FROM gait_embeddings ge JOIN users u ON ge.user_id = u.id
-                ORDER BY ge.user_id, ge.captured_at DESC
-            """)
-            
-            for row in cursor.fetchall():
-                emb_id, user_id, user_name, embedding_blob = row
-                try:
-                    embedding = self.deserialize_embedding(embedding_blob)
-                    embeddings.append((emb_id, user_id, user_name, embedding))
-                except Exception as e:
-                    logger.warning(f"Failed to deserialize embedding {emb_id}: {e}")
-            
-            conn.close()
-            logger.info(f"Loaded {len(embeddings)} gait embeddings from database")
-            return embeddings
-        except Exception as e:
-            logger.error(f"Failed to load gait embeddings: {e}")
-            return []
-    
-    def get_user_embedding_count(self, user_id: int, db_path: Optional[str] = None) -> int:
-        """İstifadəçi üçün embedding sayını qaytarır."""
-        import sqlite3
-        from src.utils.helpers import get_db_path
-        
-        if db_path is None:
-            db_path = get_db_path()
-        
-        try:
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM gait_embeddings WHERE user_id = ?", (user_id,))
-            count = cursor.fetchone()[0]
-            conn.close()
-            return count
-        except Exception as e:
-            logger.error(f"Failed to get embedding count: {e}")
-            return 0
+
 
 
 # Singleton

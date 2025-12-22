@@ -12,7 +12,6 @@ Based on user-login spec:
 
 import hashlib
 import secrets
-import sqlite3
 import os
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, List, Dict
@@ -20,6 +19,8 @@ from dataclasses import dataclass
 
 import bcrypt
 from PyQt6.QtCore import QObject, pyqtSignal
+
+from src.core.database.repositories.app_user_repository import AppUserRepository
 
 
 @dataclass
@@ -74,7 +75,7 @@ class AuthManager(QObject):
         super().__init__(parent)
         self._current_session: Optional[SessionData] = None
         self._session_timeout_minutes = self.DEFAULT_SESSION_TIMEOUT_MINUTES
-        self._db_path = self._get_db_path()
+        self._repo = AppUserRepository()
     
     @classmethod
     def get_instance(cls) -> 'AuthManager':
@@ -88,62 +89,26 @@ class AuthManager(QObject):
         """Reset singleton instance (for testing)."""
         cls._instance = None
     
-    def _get_db_path(self) -> str:
-        """Get database file path."""
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        return os.path.join(base_dir, 'data', 'db', 'faceguard.db')
-    
-    def _get_connection(self) -> sqlite3.Connection:
-        """Get database connection."""
-        conn = sqlite3.connect(self._db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
-    
     # =========================================================================
     # Password Hashing
     # =========================================================================
     
     def hash_password(self, password: str, salt: Optional[bytes] = None) -> Tuple[str, str]:
         """
-        Hash password with bcrypt (secure, adaptive hashing).
-        
-        Args:
-            password: Plain text password
-            salt: Optional salt bytes (ignored for bcrypt, kept for API compatibility)
-            
-        Returns:
-            Tuple of (password_hash, salt_placeholder) as strings
-            Note: bcrypt includes salt in hash, so salt field is a placeholder
+        Hash password with bcrypt.
         """
-        # bcrypt automatically generates and embeds salt in hash
         password_bytes = password.encode('utf-8')
         password_hash = bcrypt.hashpw(password_bytes, bcrypt.gensalt(rounds=12))
-        
-        # Return hash as string, salt placeholder for DB compatibility
         return password_hash.decode('utf-8'), 'bcrypt'
     
     def verify_password(self, password: str, stored_hash: str, stored_salt: str) -> bool:
         """
         Verify password against stored hash.
-        Supports both bcrypt (new) and SHA-256 (legacy) for backward compatibility.
-        
-        Args:
-            password: Plain text password to verify
-            stored_hash: Stored password hash
-            stored_salt: Stored salt ("bcrypt" for new, hex for legacy)
-            
-        Returns:
-            True if password matches, False otherwise
         """
         try:
             if stored_salt == 'bcrypt':
-                # New bcrypt format
-                return bcrypt.checkpw(
-                    password.encode('utf-8'),
-                    stored_hash.encode('utf-8')
-                )
+                return bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8'))
             else:
-                # Legacy SHA-256 format (for existing users)
                 salt_bytes = bytes.fromhex(stored_salt)
                 salted_password = password.encode('utf-8') + salt_bytes
                 computed_hash = hashlib.sha256(salted_password).hexdigest()
@@ -156,75 +121,35 @@ class AuthManager(QObject):
     # =========================================================================
     
     def create_account(self, username: str, password: str, role: str = 'operator') -> Tuple[bool, str]:
-        """
-        Create a new user account.
-        
-        Args:
-            username: Username (min 3 characters)
-            password: Password (min 6 characters)
-            role: User role ('admin' or 'operator')
-            
-        Returns:
-            Tuple of (success, message)
-        """
-        # Validate username
+        """Create a new user account."""
         if len(username) < self.MIN_USERNAME_LENGTH:
             return False, f"Username must be at least {self.MIN_USERNAME_LENGTH} characters"
         
-        # Validate password
         if len(password) < self.MIN_PASSWORD_LENGTH:
             return False, f"Password must be at least {self.MIN_PASSWORD_LENGTH} characters"
         
-        # Validate role
         if role not in ('admin', 'operator'):
             return False, "Invalid role. Must be 'admin' or 'operator'"
         
-        # Hash password
         password_hash, salt = self.hash_password(password)
         
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            
-            # Check for duplicate username
-            cursor.execute("SELECT id FROM app_users WHERE username = ?", (username,))
-            if cursor.fetchone():
-                conn.close()
+            if self._repo.get_user_by_username(username):
                 return False, "Username already exists"
             
-            # Insert new user
-            cursor.execute('''
-                INSERT INTO app_users (username, password_hash, salt, role)
-                VALUES (?, ?, ?, ?)
-            ''', (username, password_hash, salt, role))
-            
-            conn.commit()
-            conn.close()
-            return True, "Account created successfully"
+            if self._repo.create_user(username, password_hash, salt, role):
+                return True, "Account created successfully"
+            return False, "Failed to create account"
             
         except Exception as e:
             return False, f"Database error: {str(e)}"
     
     def list_accounts(self) -> List[UserAccount]:
-        """
-        Get list of all user accounts.
-        
-        Returns:
-            List of UserAccount objects
-        """
+        """Get list of all user accounts."""
         accounts = []
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute('''
-                SELECT id, username, password_hash, salt, role, is_locked, 
-                       lock_until, failed_attempts, created_at
-                FROM app_users
-                ORDER BY created_at
-            ''')
-            
-            for row in cursor.fetchall():
+            rows = self._repo.get_all_users()
+            for row in rows:
                 lock_until = None
                 if row['lock_until']:
                     lock_until = datetime.fromisoformat(row['lock_until'])
@@ -243,26 +168,13 @@ class AuthManager(QObject):
                     created_at=created_at
                 )
                 accounts.append(account)
-            
-            conn.close()
         except Exception:
             pass
-        
         return accounts
     
     def update_account(self, user_id: int, password: Optional[str] = None, 
                        role: Optional[str] = None) -> Tuple[bool, str]:
-        """
-        Update user account.
-        
-        Args:
-            user_id: User ID to update
-            password: New password (optional)
-            role: New role (optional)
-            
-        Returns:
-            Tuple of (success, message)
-        """
+        """Update user account."""
         if password is None and role is None:
             return False, "No changes specified"
         
@@ -273,81 +185,39 @@ class AuthManager(QObject):
             return False, f"Password must be at least {self.MIN_PASSWORD_LENGTH} characters"
         
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            
-            # Check if user exists
-            cursor.execute("SELECT id FROM app_users WHERE id = ?", (user_id,))
-            if not cursor.fetchone():
-                conn.close()
+            if not self._repo.get_user_by_id(user_id):
                 return False, "User not found"
             
-            # Use explicit, safe queries instead of dynamic column building
-            # This prevents any SQL injection through column names
-            if password is not None and role is not None:
-                password_hash, salt = self.hash_password(password)
-                cursor.execute('''
-                    UPDATE app_users 
-                    SET password_hash = ?, salt = ?, role = ? 
-                    WHERE id = ?
-                ''', (password_hash, salt, role, user_id))
-            elif password is not None:
-                password_hash, salt = self.hash_password(password)
-                cursor.execute('''
-                    UPDATE app_users 
-                    SET password_hash = ?, salt = ? 
-                    WHERE id = ?
-                ''', (password_hash, salt, user_id))
-            elif role is not None:
-                cursor.execute('''
-                    UPDATE app_users 
-                    SET role = ? 
-                    WHERE id = ?
-                ''', (role, user_id))
+            updates = {}
+            if password is not None:
+                ph, salt = self.hash_password(password)
+                updates['password_hash'] = ph
+                updates['salt'] = salt
             
-            conn.commit()
-            conn.close()
-            return True, "Account updated successfully"
+            if role is not None:
+                updates['role'] = role
+                
+            if self._repo.update_user(user_id, updates):
+                return True, "Account updated successfully"
+            return False, "Update failed"
             
         except Exception as e:
             return False, "An error occurred while updating the account"
     
     def delete_account(self, user_id: int) -> Tuple[bool, str]:
-        """
-        Delete user account.
-        
-        Args:
-            user_id: User ID to delete
-            
-        Returns:
-            Tuple of (success, message)
-        """
+        """Delete user account."""
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            
-            # Check if user exists and get their role
-            cursor.execute("SELECT role FROM app_users WHERE id = ?", (user_id,))
-            user = cursor.fetchone()
-            
+            user = self._repo.get_user_by_id(user_id)
             if not user:
-                conn.close()
                 return False, "User not found"
             
-            # Check if this is the last admin
             if user['role'] == 'admin':
-                cursor.execute("SELECT COUNT(*) as count FROM app_users WHERE role = 'admin'")
-                admin_count = cursor.fetchone()['count']
-                
-                if admin_count <= 1:
-                    conn.close()
+                if self._repo.get_admin_count() <= 1:
                     return False, "Cannot delete the last administrator"
             
-            # Delete user
-            cursor.execute("DELETE FROM app_users WHERE id = ?", (user_id,))
-            conn.commit()
-            conn.close()
-            return True, "Account deleted successfully"
+            if self._repo.delete_user(user_id):
+                return True, "Account deleted successfully"
+            return False, "Delete failed"
             
         except Exception as e:
             return False, f"Database error: {str(e)}"
@@ -355,12 +225,7 @@ class AuthManager(QObject):
     def has_accounts(self) -> bool:
         """Check if any user accounts exist."""
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) as count FROM app_users")
-            count = cursor.fetchone()['count']
-            conn.close()
-            return count > 0
+            return len(self._repo.get_all_users()) > 0
         except Exception:
             return False
 
@@ -369,58 +234,29 @@ class AuthManager(QObject):
     # =========================================================================
     
     def authenticate(self, username: str, password: str) -> Tuple[bool, str]:
-        """
-        Authenticate user with username and password.
-        
-        Args:
-            username: Username
-            password: Password
-            
-        Returns:
-            Tuple of (success, message)
-        """
+        """Authenticate user with username and password."""
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            
-            # Get user
-            cursor.execute('''
-                SELECT id, username, password_hash, salt, role, is_locked, 
-                       lock_until, failed_attempts
-                FROM app_users WHERE username = ?
-            ''', (username,))
-            
-            user = cursor.fetchone()
-            
+            user = self._repo.get_user_by_username(username)
             if not user:
-                conn.close()
                 return False, "Invalid username or password"
             
-            # Check if account is locked
+            # Check lockout
             if user['is_locked'] and user['lock_until']:
                 lock_until = datetime.fromisoformat(user['lock_until'])
                 if datetime.now() < lock_until:
                     remaining = (lock_until - datetime.now()).seconds // 60 + 1
-                    conn.close()
                     return False, f"Account locked. Try again in {remaining} minutes"
                 else:
-                    # Unlock account (lockout expired)
-                    cursor.execute('''
-                        UPDATE app_users SET is_locked = 0, lock_until = NULL, failed_attempts = 0
-                        WHERE id = ?
-                    ''', (user['id'],))
-                    conn.commit()
+                    self._repo.update_user(user['id'], {
+                        'is_locked': 0, 'lock_until': None, 'failed_attempts': 0
+                    })
             
             # Verify password
             if self.verify_password(password, user['password_hash'], user['salt']):
-                # Reset failed attempts on success
-                cursor.execute('''
-                    UPDATE app_users SET failed_attempts = 0, is_locked = 0, lock_until = NULL
-                    WHERE id = ?
-                ''', (user['id'],))
-                conn.commit()
+                self._repo.update_user(user['id'], {
+                    'failed_attempts': 0, 'is_locked': 0, 'lock_until': None
+                })
                 
-                # Create session
                 self._current_session = SessionData(
                     user_id=user['id'],
                     username=user['username'],
@@ -428,29 +264,19 @@ class AuthManager(QObject):
                     login_time=datetime.now(),
                     last_activity=datetime.now()
                 )
-                
-                conn.close()
                 return True, "Login successful"
             else:
-                # Increment failed attempts
                 new_attempts = user['failed_attempts'] + 1
-                
                 if new_attempts >= self.MAX_FAILED_ATTEMPTS:
-                    # Lock account
                     lock_until = datetime.now() + timedelta(minutes=self.LOCKOUT_DURATION_MINUTES)
-                    cursor.execute('''
-                        UPDATE app_users SET failed_attempts = ?, is_locked = 1, lock_until = ?
-                        WHERE id = ?
-                    ''', (new_attempts, lock_until.isoformat(), user['id']))
-                    conn.commit()
-                    conn.close()
+                    self._repo.update_user(user['id'], {
+                        'failed_attempts': new_attempts,
+                        'is_locked': 1,
+                        'lock_until': lock_until.isoformat()
+                    })
                     return False, f"Account locked for {self.LOCKOUT_DURATION_MINUTES} minutes"
                 else:
-                    cursor.execute('''
-                        UPDATE app_users SET failed_attempts = ? WHERE id = ?
-                    ''', (new_attempts, user['id']))
-                    conn.commit()
-                    conn.close()
+                    self._repo.update_user(user['id'], {'failed_attempts': new_attempts})
                     remaining = self.MAX_FAILED_ATTEMPTS - new_attempts
                     return False, f"Invalid username or password. {remaining} attempts remaining"
                     
@@ -524,50 +350,22 @@ class AuthManager(QObject):
     # =========================================================================
     
     def change_password(self, user_id: int, old_password: str, new_password: str) -> Tuple[bool, str]:
-        """
-        Change user password.
-        
-        Args:
-            user_id: User ID
-            old_password: Current password for verification
-            new_password: New password
-            
-        Returns:
-            Tuple of (success, message)
-        """
+        """Change user password."""
         if len(new_password) < self.MIN_PASSWORD_LENGTH:
             return False, f"Password must be at least {self.MIN_PASSWORD_LENGTH} characters"
         
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            
-            # Get current password hash
-            cursor.execute('''
-                SELECT password_hash, salt FROM app_users WHERE id = ?
-            ''', (user_id,))
-            
-            user = cursor.fetchone()
+            user = self._repo.get_user_by_id(user_id)
             if not user:
-                conn.close()
                 return False, "User not found"
             
-            # Verify old password
             if not self.verify_password(old_password, user['password_hash'], user['salt']):
-                conn.close()
                 return False, "Current password is incorrect"
             
-            # Hash new password
             new_hash, new_salt = self.hash_password(new_password)
-            
-            # Update password
-            cursor.execute('''
-                UPDATE app_users SET password_hash = ?, salt = ? WHERE id = ?
-            ''', (new_hash, new_salt, user_id))
-            
-            conn.commit()
-            conn.close()
-            return True, "Password changed successfully"
+            if self._repo.update_user(user_id, {'password_hash': new_hash, 'salt': new_salt}):
+                return True, "Password changed successfully"
+            return False, "Change failed"
             
         except Exception as e:
             return False, f"Database error: {str(e)}"

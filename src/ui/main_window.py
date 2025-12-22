@@ -27,8 +27,10 @@ except ImportError:
 
 import sys
 import os
-import sqlite3
-import csv
+
+from src.core.database.repositories.event_repository import EventRepository
+from src.core.database.repositories.user_repository import UserRepository
+
 import json
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
@@ -36,7 +38,7 @@ from src.utils.logger import get_logger
 from src.utils.i18n import tr, get_translator
 from src.utils.helpers import (
     load_config, load_cameras, save_snapshot, 
-    get_timestamp, get_db_path, save_event
+    get_timestamp, get_db_path
 )
 from src.ui.styles import DARK_THEME, COLORS
 from src.ui.settings_dialog import SettingsDialog
@@ -45,6 +47,7 @@ from src.core.camera_thread import CameraConfig, CameraManager
 from src.core.ai_thread import AIWorker, FrameResult, Detection, DetectionType, draw_detections
 from src.core.cleaner import get_cleaner
 from src.hardware.telegram_notifier import get_telegram_notifier
+from src.core.storage_worker import StorageWorker
 
 # Dashboard components
 from src.ui.dashboard import SidebarWidget, HomePage, CameraPage, LogsPage, ActivityItem
@@ -69,8 +72,13 @@ class MainWindow(QMainWindow):
         # Managers
         self._camera_manager = CameraManager()
         self._ai_worker: Optional[AIWorker] = None
+        self._storage_worker: Optional[StorageWorker] = StorageWorker()
         self._telegram_notifier = get_telegram_notifier()
         self._auth_manager = get_auth_manager()
+        
+        # Repositories
+        self._event_repo = EventRepository()
+        self._user_repo = UserRepository()
         
         # State
         self._is_running = False
@@ -308,6 +316,10 @@ class MainWindow(QMainWindow):
         self._ai_worker.detection_alert.connect(self._on_detection_alert)
         self._ai_worker.start()
         
+        # Start Storage Worker
+        if self._storage_worker:
+            self._storage_worker.start()
+        
         # Start cameras
         self._camera_manager.start_all()
         
@@ -332,6 +344,10 @@ class MainWindow(QMainWindow):
             self._ai_worker.stop()
             self._ai_worker.wait(3000)
             self._ai_worker = None
+            
+        if self._storage_worker:
+            self._storage_worker.stop()
+            self._storage_worker.wait(1000)
         
         self.camera_page.video_grid.clear_all()
         
@@ -405,31 +421,20 @@ class MainWindow(QMainWindow):
         # Update log count
         self.logs_page.update_count(self.logs_page.logs_list.count())
         
-        # Save event to database
-        event_type = detection.type.value if hasattr(detection.type, 'value') else str(detection.type)
-        identification_method = getattr(detection, 'identification_method', 'unknown') or 'unknown'
-        save_event(
-            event_type=event_type,
-            object_label=detection.label,
-            confidence=detection.confidence,
-            snapshot_path=None,  # Snapshot saved separately if needed
-            identification_method=identification_method
-        )
+        # Save event using async StorageWorker
+        if self._storage_worker:
+            self._storage_worker.add_task(detection, frame)
+        
+        self._update_stats()
         
         self._update_stats()
 
     def _update_stats(self):
         """Stats widget-i yenilə."""
         try:
-            db_path = get_db_path()
-            if os.path.exists(db_path):
-                conn = sqlite3.connect(db_path)
-                cursor = conn.cursor()
-                cursor.execute("SELECT Count(*) FROM users")
-                self._known_faces_count = cursor.fetchone()[0]
-                conn.close()
-        except:
-            pass
+            self._known_faces_count = self._user_repo.get_user_count()
+        except Exception:
+            self._known_faces_count = 0
         
         self.sidebar.update_stats(self._known_faces_count, self._total_detections_count)
 
@@ -594,13 +599,7 @@ class MainWindow(QMainWindow):
             return
         
         try:
-            db_path = get_db_path()
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM events ORDER BY timestamp DESC LIMIT 1000")
-            rows = cursor.fetchall()
-            columns = [desc[0] for desc in cursor.description]
-            conn.close()
+            columns, rows = self._event_repo.get_all_events_for_export(1000)
             
             if path.endswith('.json'):
                 data = [dict(zip(columns, row)) for row in rows]

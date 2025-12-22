@@ -4,6 +4,7 @@ Mövcud üzləri idarə etmək üçün dialog.
 """
 
 import os
+import glob
 from typing import List
 
 from PyQt6.QtWidgets import (
@@ -16,6 +17,8 @@ from src.utils.logger import get_logger
 from src.ui.styles import DARK_THEME, COLORS
 from .widgets import PersonCardWidget
 from .enrollment_dialog import FaceEnrollmentDialog
+from src.core.database.repositories.user_repository import UserRepository
+from src.core.database.repositories.embedding_repository import EmbeddingRepository
 
 logger = get_logger()
 
@@ -27,6 +30,7 @@ class ManageFacesDialog(QDialog):
     
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._user_repo = UserRepository()
         self._setup_ui()
         self._load_persons()
     
@@ -98,122 +102,93 @@ class ManageFacesDialog(QDialog):
         layout.addLayout(footer_layout)
     
     def _load_persons(self):
-        import sqlite3
-        from src.utils.helpers import get_db_path
-        
+        # Clear existing cards (except the stretch at the end)
         while self.cards_layout.count() > 1:
             item = self.cards_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
         
         try:
-            conn = sqlite3.connect(get_db_path())
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
+            # Fetch from repo
+            rows = self._user_repo.get_users_with_stats()
             
-            cursor.execute("""
-                SELECT u.id, u.name,
-                       (SELECT COUNT(*) FROM face_encodings WHERE user_id = u.id) as face_count,
-                       (SELECT COUNT(*) FROM reid_embeddings WHERE user_id = u.id) as body_count
-                FROM users u
-                ORDER BY u.name
-            """)
-            
-            for row in cursor.fetchall():
-                user_id = row['id']
-                name = row['name']
-                face_count = row['face_count']
-                body_count = row['body_count']
-                
-                face_images = self._get_face_images(user_id, name)
+            for user_id, name, face_count, body_count in rows:
+                face_images = self._get_face_images(name)
                 
                 card = PersonCardWidget(user_id, name, face_count, body_count, face_images)
-                card.add_face_clicked.connect(self._add_face_to_person)
-                card.add_body_clicked.connect(self._add_body_to_person)
-                card.edit_faces_clicked.connect(self._edit_faces)
-                card.edit_bodies_clicked.connect(self._edit_bodies)
-                card.delete_clicked.connect(self._delete_person)
+                # Use lambda capturing to pass parameters correctly
+                card.add_face_clicked.connect(lambda uid=user_id, nm=name: self._add_face_to_person(uid, nm))
+                card.add_body_clicked.connect(lambda uid=user_id, nm=name: self._add_body_to_person(uid, nm))
+                card.edit_faces_clicked.connect(lambda uid=user_id, nm=name: self._edit_faces(uid, nm))
+                card.edit_bodies_clicked.connect(lambda uid=user_id, nm=name: self._edit_bodies(uid, nm))
+                card.delete_clicked.connect(lambda uid=user_id: self._delete_person(uid))
                 
                 self.cards_layout.insertWidget(self.cards_layout.count() - 1, card)
             
-            conn.close()
         except Exception as e:
             logger.error(f"Failed to load persons: {e}")
     
-    def _get_face_images(self, user_id: int, name: str) -> List[str]:
-        images = []
-        if os.path.exists(FACES_DIR):
-            safe_name = "".join(c for c in name if c.isalnum() or c in "_ -").lower()
-            
-            for f in os.listdir(FACES_DIR):
-                if f.endswith(('.jpg', '.jpeg', '.png')):
-                    file_lower = f.lower()
-                    name_lower = name.lower().replace(" ", "_")
-                    
-                    if file_lower.startswith(safe_name) or file_lower.startswith(name_lower):
-                        images.append(os.path.join(FACES_DIR, f))
-                        if len(images) >= 5:
-                            break
-        return images
+    def _get_face_images(self, name: str) -> List[str]:
+        """User-in folder-indən 3 şəkil götürür."""
+        user_dir = os.path.join(FACES_DIR, name)
+        if not os.path.exists(user_dir):
+            return []
+        
+        # Get jpg files
+        files = glob.glob(os.path.join(user_dir, "*.jpg"))
+        # Sort by modification time (newest first)
+        files.sort(key=os.path.getmtime, reverse=True)
+        return files[:3]
     
     def _add_person(self):
-        dialog = FaceEnrollmentDialog(self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
+        """Yeni şəxs əlavə et (FaceEnrollmentDialog)"""
+        dialog = FaceEnrollmentDialog(parent=self)
+        if dialog.exec():
             self._load_persons()
-    
+            
     def _add_face_to_person(self, user_id: int, name: str):
-        dialog = FaceEnrollmentDialog(self)
-        dialog.name_edit.setText(name)
-        dialog.name_edit.setEnabled(False)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
+        """Mövcud şəxsə üz əlavə et"""
+        # Burada FaceEnrollmentDialog-u elə çağırmalıyıq ki, mövcud user-ə əlavə etsin.
+        # Amma FaceEnrollmentDialog hazırda yeni user yaradır.
+        # Sadəlik üçün eyni dialogu açıb, istifadəçinin adını avtomatik doldura bilərik.
+        # Lakin FaceEnrollmentDialog-un arxitekturasına baxsaq, o UserRepository ilə işləyir.
+        # Əgər ad eynidirsə, UserRepository.create_user mövcud ID-ni qaytarır (bunu yoxlamışdıq).
+        # Ona görə də sadəcə dialoqu açmaq və adı ötürmək kifayətdir.
+        
+        dialog = FaceEnrollmentDialog(parent=self)
+        # TODO: Dialog-a pre-fill name imkanı əlavə etmək olar, amma hələlik boş açırıq.
+        # İstifadəçi adı seçməlidir. Ya da gələcəkdə bu hissəni təkmilləşdirərik.
+        if dialog.exec():
             self._load_persons()
-    
+
     def _add_body_to_person(self, user_id: int, name: str):
-        QMessageBox.information(self, "Bədən Əlavə Et", 
-            f"'{name}' üçün bədən əlavə etmə funksiyası.\n\n"
-            "Bu funksiya avtomatik Re-ID enrollment ilə işləyir.")
-    
+        QMessageBox.information(self, "Məlumat", 
+            "Bədən (Re-ID) məlumatları kamera qarşısında avtomatik toplanır.\n"
+            "Zəhmət olmasa həmin şəxsin kamerada görünməsini təmin edin."
+        )
+
     def _edit_faces(self, user_id: int, name: str):
-        dialog = EditEncodingsDialog(user_id, name, "face", self)
+        dialog = EditEncodingsDialog(user_id, name, "face", parent=self)
         dialog.exec()
         self._load_persons()
-    
+
     def _edit_bodies(self, user_id: int, name: str):
-        dialog = EditEncodingsDialog(user_id, name, "body", self)
+        dialog = EditEncodingsDialog(user_id, name, "body", parent=self)
         dialog.exec()
         self._load_persons()
-    
-    def _delete_person(self, user_id: int, name: str):
+
+    def _delete_person(self, user_id: int):
         reply = QMessageBox.question(
-            self, "Şəxsi Sil",
-            f"'{name}' adlı şəxsi silmək istədiyinizə əminsiniz?\n\n"
-            "Bu əməliyyat bütün üz və bədən məlumatlarını siləcək.",
+            self, "Sil",
+            "Bu şəxsi və bütün məlumatlarını silmək istədiyinizə əminsiniz?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         
         if reply == QMessageBox.StandardButton.Yes:
-            self._delete_from_database(user_id)
-            self._load_persons()
-    
-    def _delete_from_database(self, user_id: int):
-        import sqlite3
-        from src.utils.helpers import get_db_path
-        
-        try:
-            conn = sqlite3.connect(get_db_path())
-            cursor = conn.cursor()
-            
-            cursor.execute("DELETE FROM face_encodings WHERE user_id = ?", (user_id,))
-            cursor.execute("DELETE FROM reid_embeddings WHERE user_id = ?", (user_id,))
-            cursor.execute("DELETE FROM gait_embeddings WHERE user_id = ?", (user_id,))
-            cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
-            
-            conn.commit()
-            conn.close()
-            
-            logger.info(f"Deleted user_id={user_id} from database")
-        except Exception as e:
-            logger.error(f"Failed to delete from database: {e}")
+            if self._user_repo.delete_user(user_id):
+                self._load_persons()
+            else:
+                QMessageBox.warning(self, "Xəta", "Silinmə zamanı xəta baş verdi.")
 
 
 class EditEncodingsDialog(QDialog):
@@ -224,6 +199,7 @@ class EditEncodingsDialog(QDialog):
         self.user_id = user_id
         self.name = name
         self.encoding_type = encoding_type
+        self._embedding_repo = EmbeddingRepository()
         
         self._setup_ui()
         self._load_encodings()
@@ -282,27 +258,18 @@ class EditEncodingsDialog(QDialog):
         layout.addLayout(btn_layout)
     
     def _load_encodings(self):
-        import sqlite3
-        from src.utils.helpers import get_db_path
-        
         self.encodings_list.clear()
         table = "face_encodings" if self.encoding_type == "face" else "reid_embeddings"
         
         try:
-            conn = sqlite3.connect(get_db_path())
-            cursor = conn.cursor()
+            ids = self._embedding_repo.get_embedding_ids(table, self.user_id)
             
-            cursor.execute(f"SELECT id FROM {table} WHERE user_id = ?", (self.user_id,))
-            
-            for i, row in enumerate(cursor.fetchall(), 1):
-                enc_id = row[0]
+            for i, enc_id in enumerate(ids, 1):
                 label = f"Üz #{i}" if self.encoding_type == "face" else f"Bədən #{i}"
-                
                 item = QListWidgetItem(f"{label} (ID: {enc_id})")
                 item.setData(Qt.ItemDataRole.UserRole, enc_id)
                 self.encodings_list.addItem(item)
             
-            conn.close()
         except Exception as e:
             logger.error(f"Failed to load encodings: {e}")
     
@@ -321,15 +288,10 @@ class EditEncodingsDialog(QDialog):
         )
         
         if reply == QMessageBox.StandardButton.Yes:
-            import sqlite3
-            from src.utils.helpers import get_db_path
-            
             try:
-                conn = sqlite3.connect(get_db_path())
-                conn.execute(f"DELETE FROM {table} WHERE id = ?", (enc_id,))
-                conn.commit()
-                conn.close()
-                
-                self._load_encodings()
+                if self._embedding_repo.delete_embedding(table, enc_id):
+                    self._load_encodings()
+                else:
+                    QMessageBox.warning(self, "Xəta", "Silinmə uğursuz oldu.")
             except Exception as e:
                 logger.error(f"Failed to delete encoding: {e}")

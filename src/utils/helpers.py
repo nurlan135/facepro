@@ -453,89 +453,6 @@ def get_app_root() -> str:
 
 
 
-def _ensure_db_initialized(db_path: str):
-    """Cədvəlləri yaradır (əgər yoxdursa)."""
-    import sqlite3
-    
-    # Fayl boşdursa və ya cədvəllər yoxdursa
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        # Users table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # Face Encodings table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS face_encodings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                encoding BLOB NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            )
-        """)
-        
-        # Events table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                event_type TEXT NOT NULL,
-                object_label TEXT,
-                confidence REAL,
-                snapshot_path TEXT,
-                identification_method TEXT DEFAULT 'unknown',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # Migration: Add identification_method column if it doesn't exist (for existing databases)
-        try:
-            cursor.execute("ALTER TABLE events ADD COLUMN identification_method TEXT DEFAULT 'unknown'")
-        except:
-            pass  # Column already exists
-        
-        # Re-ID Embeddings table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS reid_embeddings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                vector BLOB NOT NULL,
-                confidence REAL,
-                captured_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        """)
-        
-        # Gait Embeddings table (Yeriş tanıma vektorları)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS gait_embeddings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                embedding BLOB NOT NULL,
-                confidence REAL DEFAULT 1.0,
-                captured_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        """)
-        
-        # Index for faster gait lookups by user_id
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_gait_user ON gait_embeddings(user_id)
-        """)
-        
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        logger.error(f"Failed to initialize DB: {e}")
-
-
 def get_db_path() -> str:
     """
     DB faylının tam yolunu qaytarır.
@@ -550,9 +467,6 @@ def get_db_path() -> str:
     except:
         pass
         
-    # DB strukturunu yoxla/yarat
-    _ensure_db_initialized(db_path)
-    
     return db_path
 
 def get_faces_dir() -> str:
@@ -565,43 +479,3 @@ def get_faces_dir() -> str:
         pass
     return faces_dir
 
-
-def save_event(
-    event_type: str,
-    object_label: str = None,
-    confidence: float = None,
-    snapshot_path: str = None,
-    identification_method: str = 'unknown'
-) -> bool:
-    """
-    Event-i database-ə saxla.
-    
-    Args:
-        event_type: Event növü ('PERSON', 'INTRUSION', 'OFFLINE_ALERT')
-        object_label: Aşkarlanan obyektin adı ('Ali', 'Unknown', etc.)
-        confidence: Tanıma etibar dərəcəsi (0.0 - 1.0)
-        snapshot_path: Snapshot şəklinin yolu
-        identification_method: Tanıma metodu ('face', 'reid', 'gait', 'unknown')
-    
-    Returns:
-        bool: Uğurlu olduqda True
-    """
-    import sqlite3
-    
-    try:
-        db_path = get_db_path()
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            INSERT INTO events (event_type, object_label, confidence, snapshot_path, identification_method)
-            VALUES (?, ?, ?, ?, ?)
-        """, (event_type, object_label, confidence, snapshot_path, identification_method))
-        
-        conn.commit()
-        conn.close()
-        logger.debug(f"Event saved: {event_type} - {object_label} ({identification_method})")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to save event: {e}")
-        return False

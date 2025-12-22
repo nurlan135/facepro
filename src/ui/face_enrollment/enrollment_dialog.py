@@ -4,6 +4,8 @@ Dialog for adding new known faces to the system.
 """
 
 import os
+import cv2
+import numpy as np
 from datetime import datetime
 from typing import Optional
 
@@ -12,20 +14,43 @@ from PyQt6.QtWidgets import (
     QLabel, QLineEdit, QPushButton, QFileDialog,
     QMessageBox, QFrame, QWidget
 )
-from PyQt6.QtCore import Qt, pyqtSignal
-
-import cv2
-import numpy as np
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QThread
+from PyQt6.QtGui import QImage, QPixmap
 
 from src.utils.logger import get_logger
-from src.utils.helpers import ensure_dir
+from src.utils.helpers import ensure_dir, cv2_to_qpixmap
 from src.ui.styles import DARK_THEME, COLORS
-from src.utils.i18n import tr
-from .widgets import FacePreviewWidget
+from src.core.database.repositories.user_repository import UserRepository
+from src.core.database.repositories.embedding_repository import EmbeddingRepository
+from src.core.face_recognizer import FaceRecognizer
 
 logger = get_logger()
 
 FACES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'data', 'faces')
+
+
+class CameraWorker(QThread):
+    """Temporary camera thread for enrollment."""
+    frame_captured = pyqtSignal(np.ndarray)
+
+    def __init__(self, camera_index=0):
+        super().__init__()
+        self.camera_index = camera_index
+        self._running = False
+
+    def run(self):
+        self._running = True
+        cap = cv2.VideoCapture(self.camera_index)
+        while self._running:
+            ret, frame = cap.read()
+            if ret:
+                self.frame_captured.emit(frame)
+            QThread.msleep(30)
+        cap.release()
+
+    def stop(self):
+        self._running = False
+        self.wait()
 
 
 class FaceEnrollmentDialog(QDialog):
@@ -33,392 +58,265 @@ class FaceEnrollmentDialog(QDialog):
     
     face_enrolled = pyqtSignal(str, str)
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, camera_index=0):
         super().__init__(parent)
-        self._face_recognition = None
+        self.camera_index = camera_index
+        
+        # Repositories & Engine
+        self._user_repo = UserRepository()
+        self._embedding_repo = EmbeddingRepository()
+        self._face_recognizer = FaceRecognizer()
+        
+        # State
+        self._current_frame: Optional[np.ndarray] = None
+        self._captured_image: Optional[np.ndarray] = None
+        self._camera_worker: Optional[CameraWorker] = None
+        self._face_encoding: Optional[np.ndarray] = None
+        
         self._setup_ui()
-    
+        self._start_camera()
+        
     def _setup_ui(self):
-        self.setWindowTitle(tr('enroll_title'))
-        self.setMinimumSize(600, 450)
-        self.setProperty("class", "dialog_window")
-        self.setStyleSheet(DARK_THEME + """
-            QDialog {
-                background-color: #121212;
-            }
-            QLabel {
-                color: #e2e8f0;
-            }
-            QLineEdit {
-                background-color: #2d3748;
-                border: 1px solid #4a5568;
-                border-radius: 6px;
-                padding: 10px;
-                color: white;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                border: 1px solid #3B82F6;
-            }
-            /* Clean Panel Style to replace GroupBox */
-            QFrame[class="panel"] {
-                background-color: #1a1c23;
-                border: 1px solid #2d3748;
-                border-radius: 12px;
-                padding: 15px;
-            }
-            QLabel[class="panel_title"] {
-                font-size: 14px;
-                font-weight: bold;
-                color: #a0aec0;
-                margin-bottom: 10px;
-            }
-            QPushButton[class="action_btn"] {
-                background-color: #2d3748; 
-                color: white;
-                border: 1px solid #4a5568;
-                border-radius: 6px;
-                padding: 8px 16px;
-            }
-            QPushButton[class="action_btn"]:hover {
-                background-color: #4a5568;
-            }
-            QPushButton[class="primary_btn"] {
-                background-color: #3B82F6;
-                color: white;
+        self.setWindowTitle("Yeni Üz Əlavə Et")
+        self.setFixedSize(600, 700)
+        self.setStyleSheet(DARK_THEME)
+        
+        layout = QVBoxLayout(self)
+        layout.setSpacing(20)
+        
+        # Title
+        title = QLabel("Yeni Şəxs Qeydiyyatı")
+        title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {COLORS['text_primary']};")
+        layout.addWidget(title, alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        # Preview Area
+        self.preview_lbl = QLabel()
+        self.preview_lbl.setFixedSize(480, 360)
+        self.preview_lbl.setStyleSheet(f"background-color: black; border: 2px solid {COLORS['border']}; border-radius: 8px;")
+        self.preview_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        preview_container = QHBoxLayout()
+        preview_container.addStretch()
+        preview_container.addWidget(self.preview_lbl)
+        preview_container.addStretch()
+        layout.addLayout(preview_container)
+        
+        # Buttons (Capture / Upload)
+        btn_layout = QHBoxLayout()
+        
+        self.btn_capture = QPushButton("📷 Şəkil Çək")
+        self.btn_capture.setStyleSheet(self._btn_style(COLORS['primary']))
+        self.btn_capture.clicked.connect(self._capture_frame)
+        
+        self.btn_upload = QPushButton("📂 Fayl Yüklə")
+        self.btn_upload.setStyleSheet(self._btn_style(COLORS['secondary']))
+        self.btn_upload.clicked.connect(self._upload_file)
+        
+        self.btn_retake = QPushButton("🔄 Yenidən")
+        self.btn_retake.setStyleSheet(self._btn_style(COLORS['warning']))
+        self.btn_retake.clicked.connect(self._retake)
+        self.btn_retake.hide()
+        
+        btn_layout.addWidget(self.btn_capture)
+        btn_layout.addWidget(self.btn_upload)
+        btn_layout.addWidget(self.btn_retake)
+        layout.addLayout(btn_layout)
+        
+        # Form
+        form_frame = QFrame()
+        form_frame.setStyleSheet(f"background-color: {COLORS['bg_dark']}; border-radius: 8px; padding: 10px;")
+        form_layout = QFormLayout(form_frame)
+        
+        self.name_input = QLineEdit()
+        self.name_input.setPlaceholderText("Ad və Soyad daxil edin")
+        self.name_input.setStyleSheet(f"padding: 8px; border: 1px solid {COLORS['border']}; border-radius: 4px; color: white;")
+        
+        lbl_name = QLabel("Ad Soyad:")
+        lbl_name.setStyleSheet("color: white; font-weight: bold;")
+        
+        form_layout.addRow(lbl_name, self.name_input)
+        layout.addWidget(form_frame)
+        
+        # Status Label
+        self.status_lbl = QLabel("Kamera aktivdir...")
+        self.status_lbl.setStyleSheet("color: #aaa; font-style: italic;")
+        self.status_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.status_lbl)
+        
+        # Action Buttons
+        actions_layout = QHBoxLayout()
+        self.btn_cancel = QPushButton("Ləğv et")
+        self.btn_cancel.setStyleSheet(self._btn_style(COLORS['bg_light'], text_color=COLORS['text_primary']))
+        self.btn_cancel.clicked.connect(self.reject)
+        
+        self.btn_save = QPushButton("Yadda Saxla")
+        self.btn_save.setStyleSheet(self._btn_style(COLORS['success']))
+        self.btn_save.clicked.connect(self._save)
+        self.btn_save.setEnabled(False)
+        
+        actions_layout.addWidget(self.btn_cancel)
+        actions_layout.addWidget(self.btn_save)
+        layout.addLayout(actions_layout)
+
+    def _btn_style(self, bg_color, text_color="white"):
+        return f"""
+            QPushButton {{
+                background-color: {bg_color};
+                color: {text_color};
                 border: none;
                 border-radius: 6px;
                 padding: 10px 20px;
                 font-weight: bold;
-            }
-            QPushButton[class="primary_btn"]:hover {
-                background-color: #2563EB;
-            }
-            QPushButton[class="primary_btn"]:disabled {
-                background-color: #4a5568;
-                color: #a0aec0;
-            }
-        """)
-        
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(20, 20, 20, 20)
-        main_layout.setSpacing(20)
-        
-        # Header
-        header = QLabel(tr('enroll_subtitle'))
-        header.setStyleSheet("font-size: 20px; font-weight: bold; color: white;")
-        main_layout.addWidget(header)
-        
-        # Content Area
-        content_layout = QHBoxLayout()
-        content_layout.setSpacing(20)
-        
-        # --- Left Panel: Image Preview ---
-        left_panel = QFrame()
-        left_panel.setProperty("class", "panel")
-        left_layout = QVBoxLayout(left_panel)
-        left_layout.setContentsMargins(15, 15, 15, 15)
-        
-        lbl_img_title = QLabel(tr('enroll_group_image'))
-        lbl_img_title.setProperty("class", "panel_title")
-        left_layout.addWidget(lbl_img_title)
-        
-        self.face_preview = FacePreviewWidget()
-        self.face_preview.setMinimumSize(220, 220)
-        # Style the preview widget container if needed, mostly handled internally
-        left_layout.addWidget(self.face_preview, alignment=Qt.AlignmentFlag.AlignCenter)
-        
-        left_layout.addSpacing(10)
-        
-        # Image Buttons
-        browse_btn = QPushButton(f"📂 {tr('enroll_btn_select')}")
-        browse_btn.setProperty("class", "action_btn")
-        browse_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        browse_btn.clicked.connect(self._browse_image)
-        left_layout.addWidget(browse_btn)
-        
-        capture_btn = QPushButton(f"📷 {tr('enroll_btn_capture')}")
-        capture_btn.setProperty("class", "action_btn")
-        capture_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        capture_btn.clicked.connect(self._capture_from_webcam)
-        left_layout.addWidget(capture_btn)
-        
-        content_layout.addWidget(left_panel, 1) # Stretch factor 1
-        
-        # --- Right Panel: Details Form ---
-        right_panel = QFrame()
-        right_panel.setProperty("class", "panel")
-        right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(20, 20, 20, 20)
-        
-        lbl_details_title = QLabel(tr('enroll_group_details'))
-        lbl_details_title.setProperty("class", "panel_title")
-        right_layout.addWidget(lbl_details_title)
-        
-        right_layout.addSpacing(10)
-        
-        # Form Layout
-        form_layout = QFormLayout()
-        form_layout.setSpacing(15)
-        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
-        
-        # Name
-        lbl_name = QLabel(tr('enroll_field_name'))
-        lbl_name.setStyleSheet("font-weight: bold;")
-        self.name_edit = QLineEdit()
-        self.name_edit.setPlaceholderText(tr('enroll_placeholder_name'))
-        form_layout.addRow(lbl_name, self.name_edit)
-        
-        # Role
-        lbl_role = QLabel(tr('enroll_field_role'))
-        lbl_role.setStyleSheet("font-weight: bold;")
-        self.role_edit = QLineEdit()
-        self.role_edit.setPlaceholderText(tr('enroll_placeholder_role'))
-        form_layout.addRow(lbl_role, self.role_edit)
-        
-        # Notes
-        lbl_notes = QLabel(tr('enroll_field_notes'))
-        lbl_notes.setStyleSheet("font-weight: bold;")
-        self.notes_edit = QLineEdit()
-        self.notes_edit.setPlaceholderText(tr('enroll_placeholder_notes'))
-        form_layout.addRow(lbl_notes, self.notes_edit)
-        
-        right_layout.addLayout(form_layout)
-        
-        right_layout.addStretch()
-        
-        # Status Label area
-        status_frame = QFrame()
-        status_frame.setStyleSheet("background-color: rgba(255,255,255,0.05); border-radius: 8px; padding: 10px;")
-        sf_layout = QHBoxLayout(status_frame)
-        sf_layout.setContentsMargins(10, 5, 10, 5)
-        
-        self.status_label = QLabel(tr('enroll_field_status'))
-        self.status_label.setWordWrap(True)
-        self.status_label.setStyleSheet("color: #a0aec0; font-size: 13px;")
-        sf_layout.addWidget(self.status_label)
-        
-        right_layout.addWidget(status_frame)
-        
-        content_layout.addWidget(right_panel, 2) # Stretch factor 2
-        
-        main_layout.addLayout(content_layout)
-        
-        # Footer Buttons
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
-        
-        cancel_btn = QPushButton(tr('enroll_btn_cancel'))
-        cancel_btn.setProperty("class", "action_btn")
-        cancel_btn.setMinimumWidth(100)
-        cancel_btn.clicked.connect(self.reject)
-        btn_layout.addWidget(cancel_btn)
-        
-        self.save_btn = QPushButton(tr('enroll_btn_save'))
-        self.save_btn.setProperty("class", "primary_btn")
-        self.save_btn.setMinimumWidth(150)
-        self.save_btn.clicked.connect(self._save_face)
-        self.save_btn.setEnabled(False)
-        btn_layout.addWidget(self.save_btn)
-        
-        main_layout.addLayout(btn_layout)
+            }}
+            QPushButton:hover {{ opacity: 0.9; }}
+            QPushButton:disabled {{ background-color: #555; color: #888; }}
+        """
 
-    def _browse_image(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self, tr('enroll_btn_select'), "",
-            "Images (*.jpg *.jpeg *.png *.bmp);;All Files (*)"
-        )
+    def _start_camera(self):
+        self._camera_worker = CameraWorker(self.camera_index)
+        self._camera_worker.frame_captured.connect(self._update_preview)
+        self._camera_worker.start()
+
+    def _stop_camera(self):
+        if self._camera_worker:
+            try:
+                self._camera_worker.frame_captured.disconnect(self._update_preview)
+            except:
+                pass
+            self._camera_worker.stop()
+            self._camera_worker = None
+
+    def _update_preview(self, frame: np.ndarray):
+        self._current_frame = frame
+        pixmap = cv2_to_qpixmap(frame, (480, 360))
+        self.preview_lbl.setPixmap(pixmap)
+
+    def _capture_frame(self):
+        if self._current_frame is not None:
+            self._process_image(self._current_frame.copy())
+
+    def _upload_file(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Şəkil Seç", "", "Images (*.png *.jpg *.jpeg)")
         if path:
-            self._load_and_validate_image(path)
-    
-    def _load_and_validate_image(self, path: str):
-        if not self.face_preview.load_image(path):
-            self.status_label.setText(tr('enroll_error_load'))
-            self.status_label.setStyleSheet("color: #FC8181;") # Red-300
-            self.save_btn.setEnabled(False)
-            return
+            try:
+                # Windows Unicode path fix
+                with open(path, "rb") as f:
+                    chunk = f.read()
+                chunk_arr = np.frombuffer(chunk, dtype=np.uint8)
+                img = cv2.imdecode(chunk_arr, cv2.IMREAD_UNCHANGED)
+                
+                if img is not None:
+                    # Remove alpha channel if png
+                    if img.shape[2] == 4:
+                        img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+                        
+                    self._stop_camera()
+                    self._process_image(img)
+            except Exception as e:
+                logger.error(f"Image load error: {e}")
+
+    def _process_image(self, image: np.ndarray):
+        self._captured_image = image
+        self._stop_camera()
         
-        self.status_label.setText(tr('enroll_status_checking'))
-        self.status_label.setStyleSheet("color: #F6E05E;") # Yellow-300
-        self.repaint()
+        # Show static image
+        pixmap = cv2_to_qpixmap(image, (480, 360))
+        self.preview_lbl.setPixmap(pixmap)
         
-        cv_image = self.face_preview.get_cv_image()
-        face_count = self._detect_faces(cv_image)
+        # AI Processing (Detect Face)
+        self.status_lbl.setText("Üz emal edilir...")
+        self.status_lbl.setStyleSheet("color: yellow;")
+        QThread.msleep(100) # UX delay
         
-        if face_count == 0:
-            self.status_label.setText(tr('enroll_status_no_face'))
-            self.status_label.setStyleSheet("color: #FC8181;") # Red
-            self.save_btn.setEnabled(False)
-        elif face_count == 1:
-            self.status_label.setText(tr('enroll_status_one_face'))
-            self.status_label.setStyleSheet("color: #68D391;") # Green-300
-            self.save_btn.setEnabled(True)
-        else:
-            msg = tr('enroll_status_multi_face').replace('{count}', str(face_count))
-            self.status_label.setText(msg)
-            self.status_label.setStyleSheet("color: #F6E05E;") # Yellow
-            self.save_btn.setEnabled(False)
-    
-    def _detect_faces(self, image: np.ndarray) -> int:
         try:
-            if self._face_recognition is None:
-                import face_recognition
-                self._face_recognition = face_recognition
-            
+            # 1. Detect faces
             rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            face_locations = self._face_recognition.face_locations(rgb)
-            return len(face_locations)
-        except ImportError:
-            logger.warning("face_recognition not available")
-            return 1
-        except Exception as e:
-            logger.error(f"Face detection failed: {e}")
-            return 0
-    
-    def _capture_from_webcam(self):
-        try:
-            cap = cv2.VideoCapture(0)
-            if not cap.isOpened():
-                QMessageBox.warning(self, "Error", "Could not open webcam")
+            encodings = self._face_recognizer.get_encodings(rgb)
+            
+            if len(encodings) == 0:
+                self.status_lbl.setText("❌ Üz tapılmadı! Zəhmət olmasa yenidən cəhd edin.")
+                self.status_lbl.setStyleSheet("color: #e74c3c;")
+                self._enable_retake(True)
                 return
             
-            help_msg = tr('enroll_capture_help')
-            QMessageBox.information(self, "Capture", 
-                f"{help_msg}\n\nClick OK to open webcam preview.")
-            
-            while True:
-                ret, frame = cap.read()
-                if not ret:
-                    break
+            if len(encodings) > 1:
+                self.status_lbl.setText("⚠️ Birdən çox üz tapıldı! Yalnız bir nəfər olmalıdır.")
+                self.status_lbl.setStyleSheet("color: #f39c12;")
+                self._enable_retake(True)
+                return
                 
-                cv2.imshow(f"Capture Face - {help_msg}", frame)
-                key = cv2.waitKey(1) & 0xFF
-                
-                if key == 27: # ESC
-                    break
-                elif key == 32: # SPACE
-                    ensure_dir(FACES_DIR)
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    capture_path = os.path.join(FACES_DIR, f"capture_{timestamp}.jpg")
-                    cv2.imwrite(capture_path, frame)
-                    
-                    cap.release()
-                    cv2.destroyAllWindows()
-                    self._load_and_validate_image(capture_path)
-                    return
+            self._face_encoding = encodings[0]
+            self.status_lbl.setText("✅ Üz aşkarlandı! Məlumatları daxil edin.")
+            self.status_lbl.setStyleSheet("color: #2ecc71;")
             
-            cap.release()
-            cv2.destroyAllWindows()
+            self._enable_retake(True)
+            self.btn_save.setEnabled(True)
+            self.name_input.setFocus()
+            
         except Exception as e:
-            logger.error(f"Webcam capture failed: {e}")
-            QMessageBox.critical(self, "Error", f"Webcam capture failed: {e}")
-    
-    def _save_face(self):
-        from PyQt6.QtWidgets import QApplication
-        
-        name = self.name_edit.text().strip()
+            logger.error(f"Face processing error: {e}")
+            self.status_lbl.setText("Xəta baş verdi.")
+
+    def _enable_retake(self, enable: bool):
+        self.btn_capture.hide()
+        self.btn_upload.hide()
+        self.btn_retake.show()
+
+    def _retake(self):
+        self._captured_image = None
+        self._face_encoding = None
+        self.btn_retake.hide()
+        self.btn_capture.show()
+        self.btn_upload.show()
+        self.btn_save.setEnabled(False)
+        self.status_lbl.setText("Kamera aktivdir...")
+        self.status_lbl.setStyleSheet("color: #aaa;")
+        self._start_camera()
+
+    def _save(self):
+        name = self.name_input.text().strip()
         if not name:
-            QMessageBox.warning(self, "Error", tr('enroll_error_no_name'))
+            QMessageBox.warning(self, "Xəta", "Zəhmət olmasa ad və soyad daxil edin.")
             return
         
-        cv_image = self.face_preview.get_cv_image()
-        if cv_image is None:
-            QMessageBox.warning(self, "Error", tr('enroll_error_no_image'))
+        if self._face_encoding is None:
             return
-        
+
         try:
-            # Disable button and show progress
-            self.save_btn.setEnabled(False)
-            self.save_btn.setText("Saving...")
-            self.status_label.setText("⏳ Extracting face encoding...")
-            self.status_label.setStyleSheet("color: #F6E05E;")
-            QApplication.processEvents()
-            
-            if self._face_recognition is None:
-                import face_recognition
-                self._face_recognition = face_recognition
-            
-            rgb = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-            QApplication.processEvents()
-            
-            face_encodings = self._face_recognition.face_encodings(rgb)
-            QApplication.processEvents()
-            
-            if not face_encodings:
-                QMessageBox.critical(self, "Error", "Could not extract face encoding.")
-                self.save_btn.setEnabled(True)
-                self.save_btn.setText(tr('enroll_btn_save'))
-                return
-            
-            encoding = face_encodings[0]
-            
-            self.status_label.setText("⏳ Saving to database...")
-            QApplication.processEvents()
-            
+            # 1. Şəkli diskə yaz
             ensure_dir(FACES_DIR)
+            safe_name = "".join([c for c in name if c.isalnum() or c in (' ', '-', '_')]).strip()
+            user_dir = os.path.join(FACES_DIR, safe_name)
+            ensure_dir(user_dir)
+            
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            safe_name = "".join(c for c in name if c.isalnum() or c in "_ -")
-            image_filename = f"{safe_name}_{timestamp}.jpg"
-            image_path = os.path.join(FACES_DIR, image_filename)
+            filename = f"face_{timestamp}.jpg"
+            filepath = os.path.join(user_dir, filename)
             
-            h, w = cv_image.shape[:2]
-            max_size = 640
-            if max(h, w) > max_size:
-                scale = max_size / max(h, w)
-                new_size = (int(w * scale), int(h * scale))
-                cv_image = cv2.resize(cv_image, new_size)
+            cv2.imwrite(filepath, self._captured_image)
             
-            cv2.imwrite(image_path, cv_image)
-            self._save_to_database(name, encoding, image_path)
+            # 2. DB-yə yaz
+            self._save_to_database(name, self._face_encoding, filepath)
             
-            logger.info(f"Face enrolled: {name} -> {image_path}")
-            self.face_enrolled.emit(name, image_path)
-            
-            msg = tr('enroll_success_msg').replace('{name}', name)
-            QMessageBox.information(self, tr('enroll_success_title'), msg)
+            QMessageBox.information(self, "Uğurlu", "Şəxs uğurla əlavə edildi!")
             self.accept()
             
-        except ImportError:
-            QMessageBox.critical(self, "Error", 
-                "face_recognition library is not installed.\nPlease run: pip install face_recognition")
-            self.save_btn.setEnabled(True)
-            self.save_btn.setText(tr('enroll_btn_save'))
         except Exception as e:
-            logger.error(f"Failed to save face: {e}")
-            QMessageBox.critical(self, "Error", f"Failed to save face: {e}")
-            self.save_btn.setEnabled(True)
-            self.save_btn.setText(tr('enroll_btn_save'))
-    
+            logger.error(f"Save error: {e}")
+            QMessageBox.critical(self, "Xəta", f"Yadda saxlamaq mümkün olmadı:\n{e}")
+
     def _save_to_database(self, name: str, encoding: np.ndarray, image_path: str):
-        import sqlite3
-        from src.utils.helpers import get_db_path
+        # Create user (or get existing ID)
+        user_id = self._user_repo.create_user(name)
+        if not user_id:
+            raise Exception("Failed to get or create user ID")
         
-        db_path = get_db_path()
-        
-        try:
-            conn = sqlite3.connect(db_path, timeout=10)
-            cursor = conn.cursor()
-            
-            cursor.execute("SELECT id FROM users WHERE name = ?", (name,))
-            existing = cursor.fetchone()
-            
-            if existing:
-                user_id = existing[0]
-                logger.info(f"Adding face to existing user: {name} (id={user_id})")
-            else:
-                cursor.execute("INSERT INTO users (name, created_at) VALUES (?, datetime('now'))", (name,))
-                user_id = cursor.lastrowid
-                logger.info(f"Created new user: {name} (id={user_id})")
-            
-            # Safe numpy serialization (no pickle for security)
-            # face_recognition returns float64 128-dim vectors
-            encoding_blob = encoding.astype(np.float64).tobytes()
-            cursor.execute("INSERT INTO face_encodings (user_id, encoding) VALUES (?, ?)", (user_id, encoding_blob))
-            
-            conn.commit()
-            conn.close()
+        # Save face encoding
+        if self._embedding_repo.add_face_encoding(user_id, encoding):
             logger.info(f"Face encoding saved for user: {name}")
-            
-        except Exception as e:
-            logger.error(f"Database save failed: {e}")
-            raise
+        else:
+            raise Exception("Failed to save face encoding")
+
+    def closeEvent(self, event):
+        self._stop_camera()
+        super().closeEvent(event)
