@@ -7,7 +7,7 @@ from typing import Dict, Any
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QGroupBox,
-    QComboBox, QCheckBox
+    QComboBox, QCheckBox, QPushButton
 )
 
 from src.utils.i18n import tr

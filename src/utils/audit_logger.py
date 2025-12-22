@@ -73,7 +73,7 @@ class AuditLogger:
             LIMIT ? OFFSET ?
         """
         try:
-            results = self._db.execute_query(query, (limit, offset))
+            results = self._db.execute_read(query, (limit, offset))
             # Format results into list of dicts
             logs = []
             for row in results:

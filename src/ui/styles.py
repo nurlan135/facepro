@@ -276,6 +276,62 @@ QPushButton[class="filter_btn_active"] {{
 QPushButton[class="filter_btn_active"]:hover {{
     background-color: {COLORS['primary_hover']};
 }}
+
+/* ===== Input Fields ===== */
+QLineEdit, QComboBox {{
+    background-color: {COLORS['bg_light']};
+    color: {COLORS['text_primary']};
+    border: 1px solid {COLORS['border']};
+    border-radius: 4px;
+    padding: 6px;
+}}
+
+QLineEdit:focus {{
+    border: 1px solid {COLORS['primary']};
+}}
+
+/* ===== Tables (QTableWidget) ===== */
+QTableWidget {{
+    background-color: {COLORS['bg_medium']};
+    gridline-color: {COLORS['border']};
+    border: 1px solid {COLORS['border']};
+    color: {COLORS['text_primary']}; /* Ensure text is white */
+}}
+
+QTableWidget::item {{
+    padding: 5px;
+    color: {COLORS['text_primary']};
+}}
+
+QTableWidget::item:selected {{
+    background-color: {COLORS['primary']};
+    color: white;
+}}
+
+/* Alternating rows override to prevent white text on white bg */
+QTableWidget {{
+    alternate-background-color: {COLORS['bg_light']}; 
+}}
+
+QHeaderView::section {{
+    background-color: {COLORS['bg_card']};
+    color: {COLORS['text_secondary']};
+    border: none;
+    padding: 8px;
+    font-weight: bold;
+    border-bottom: 2px solid {COLORS['border']};
+}}
+
+QPushButton[class="secondary"] {{
+    background-color: {COLORS['bg_light']};
+    color: {COLORS['text_secondary']};
+    border: 1px solid {COLORS['border']};
+}}
+
+QPushButton[class="secondary"]:hover {{
+    background-color: {COLORS['border']};
+    color: white;
+}}
 """
 
 

@@ -76,7 +76,7 @@ class SettingsDialog(QDialog):
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
         
-        apply_btn = QPushButton("Apply")
+        apply_btn = QPushButton(tr('btn_apply'))
         apply_btn.clicked.connect(self._apply_settings)
         btn_layout.addWidget(apply_btn)
         

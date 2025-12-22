@@ -78,6 +78,7 @@ TRANSLATIONS = {
         "tab_storage": "Storage",
         "tab_notifications": "Notifications",
         "btn_save": "Save",
+        "btn_apply": "Apply",
         "btn_cancel": "Cancel",
         "lbl_language": "Language",
         "lbl_theme": "Theme",
@@ -307,7 +308,18 @@ TRANSLATIONS = {
         "enroll_error_no_image": "Please select an image first.",
         "enroll_success_title": "Success",
         "enroll_success_msg": "Face for '{name}' has been saved successfully!",
-        "enroll_capture_help": "SPACE to capture, ESC to cancel"
+        "enroll_capture_help": "SPACE to capture, ESC to cancel",
+        
+        # Audit Logs & Backup
+        "tab_audit": "Audit Logs",
+        "audit_logs_title": "Administrative Activity History",
+        "audit_timestamp": "Timestamp",
+        "audit_user": "User",
+        "audit_action": "Action",
+        "audit_details": "Details",
+        "refresh": "Refresh",
+        "btn_backup_restore": "Backup & Restore",
+        "btn_load_more": "Load More"
     },
     
     "az": {
@@ -383,6 +395,7 @@ TRANSLATIONS = {
         "tab_storage": "Yaddaş",
         "tab_notifications": "Bildirişlər",
         "btn_save": "Yadda Saxla",
+        "btn_apply": "Tətbiq Et",
         "btn_cancel": "Ləğv Et",
         "lbl_language": "Dil",
         "lbl_theme": "Mövzu",
@@ -612,7 +625,18 @@ TRANSLATIONS = {
         "enroll_error_no_image": "Zəhmət olmasa əvvəlcə şəkil seçin.",
         "enroll_success_title": "Uğurlu",
         "enroll_success_msg": "'{name}' üçün üz məlumatları yadda saxlanıldı!",
-        "enroll_capture_help": "SPACE - Çək, ESC - Ləğv et"
+        "enroll_capture_help": "SPACE - Çək, ESC - Ləğv et",
+
+        # Audit Logs & Backup
+        "tab_audit": "Audit Logları",
+        "audit_logs_title": "İnzibati Fəaliyyət Tarixçəsi",
+        "audit_timestamp": "Tarix",
+        "audit_user": "İstifadəçi",
+        "audit_action": "Hərəkət",
+        "audit_details": "Detallar",
+        "refresh": "Yenilə",
+        "btn_backup_restore": "Backup və Geri Yükləmə",
+        "btn_load_more": "Daha çox yüklə"
     },
     
     "ru": {
@@ -688,6 +712,7 @@ TRANSLATIONS = {
         "tab_storage": "Хранилище",
         "tab_notifications": "Уведомления",
         "btn_save": "Сохранить",
+        "btn_apply": "Применить",
         "btn_cancel": "Отмена",
         "lbl_language": "Язык",
         "lbl_theme": "Тема",
@@ -917,7 +942,18 @@ TRANSLATIONS = {
         "rtsp_note_path": "Путь: может быть /stream, /live, /h264 и т.д.",
         "rtsp_enter_url": "Введите URL камеры выше и нажмите кнопку 'Тест'",
         "rtsp_preview_placeholder": "Здесь появится предпросмотр камеры",
-        "rtsp_preview_hint": "Введите URL и протестируйте"
+        "rtsp_preview_hint": "Введите URL и протестируйте",
+
+        # Audit Logs & Backup
+        "tab_audit": "Аудит",
+        "audit_logs_title": "История действий администрации",
+        "audit_timestamp": "Дата",
+        "audit_user": "Пользователь",
+        "audit_action": "Действие",
+        "audit_details": "Детали",
+        "refresh": "Обновить",
+        "btn_backup_restore": "Резервное копирование",
+        "btn_load_more": "Загрузить еще"
     }
 }
 
