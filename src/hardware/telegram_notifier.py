@@ -149,17 +149,23 @@ class TelegramNotifier:
     def from_config(cls) -> 'TelegramNotifier':
         """
         Config faylından settings yükləyərək instance yaradır.
+        Security: Environment variables take priority over config file.
         
         Returns:
             TelegramNotifier instance
         """
-        config = load_config()
-        telegram_config = config.get('telegram', {})
+        # Security: Check environment variables first (more secure than config file)
+        bot_token = os.environ.get('FACEPRO_TELEGRAM_TOKEN', '')
+        chat_id = os.environ.get('FACEPRO_TELEGRAM_CHAT_ID', '')
         
-        return cls(
-            bot_token=telegram_config.get('bot_token', ''),
-            chat_id=telegram_config.get('chat_id', '')
-        )
+        # Fallback to config file if env vars not set
+        if not bot_token or not chat_id:
+            config = load_config()
+            telegram_config = config.get('telegram', {})
+            bot_token = bot_token or telegram_config.get('bot_token', '')
+            chat_id = chat_id or telegram_config.get('chat_id', '')
+        
+        return cls(bot_token=bot_token, chat_id=chat_id)
     
     def update_credentials(self, bot_token: str, chat_id: str):
         """

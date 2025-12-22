@@ -77,6 +77,9 @@ class AuthManager(QObject):
         self._current_session: Optional[SessionData] = None
         self._session_timeout_minutes = self.DEFAULT_SESSION_TIMEOUT_MINUTES
         self._repo = AppUserRepository()
+        # Thread safety for session operations
+        from threading import RLock
+        self._session_lock = RLock()
     
     @classmethod
     def get_instance(cls) -> 'AuthManager':

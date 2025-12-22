@@ -259,15 +259,27 @@ class EmbeddingRepository:
 
     def get_embedding_ids(self, table: str, user_id: int) -> List[int]:
         """Get IDs of embeddings for a user from a specific table."""
-        if table not in ('face_encodings', 'reid_embeddings', 'gait_embeddings'):
+        # Security: Use query mapping instead of f-string to prevent SQL injection
+        QUERIES = {
+            'face_encodings': "SELECT id FROM face_encodings WHERE user_id = ?",
+            'reid_embeddings': "SELECT id FROM reid_embeddings WHERE user_id = ?",
+            'gait_embeddings': "SELECT id FROM gait_embeddings WHERE user_id = ?",
+        }
+        query = QUERIES.get(table)
+        if not query:
             return []
-        query = f"SELECT id FROM {table} WHERE user_id = ?"
         rows = self.db.execute_read(query, (user_id,))
         return [r[0] for r in rows]
 
     def delete_embedding(self, table: str, embedding_id: int) -> bool:
         """Delete specific embedding by ID."""
-        if table not in ('face_encodings', 'reid_embeddings', 'gait_embeddings'):
+        # Security: Use query mapping instead of f-string to prevent SQL injection
+        QUERIES = {
+            'face_encodings': "DELETE FROM face_encodings WHERE id = ?",
+            'reid_embeddings': "DELETE FROM reid_embeddings WHERE id = ?",
+            'gait_embeddings': "DELETE FROM gait_embeddings WHERE id = ?",
+        }
+        query = QUERIES.get(table)
+        if not query:
             return False
-        query = f"DELETE FROM {table} WHERE id = ?"
         return self.db.execute_write(query, (embedding_id,))

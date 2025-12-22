@@ -28,25 +28,34 @@ class FaceRecognizer:
     """
     Face Recognition modulu.
     InsightFace (default) və ya dlib backend-ini istifadə edir.
+    
+    Supports Dependency Injection for testing:
+        recognizer = FaceRecognizer(embedding_repo=mock_repo)
     """
     
     # Backend types
     BACKEND_INSIGHTFACE = 'insightface'
     BACKEND_DLIB = 'dlib'
     
-    def __init__(self, tolerance: float = 0.4, backend: str = 'insightface'):
+    def __init__(
+        self, 
+        tolerance: float = 0.4, 
+        backend: str = 'insightface',
+        embedding_repo: Optional[EmbeddingRepository] = None
+    ):
         """
         Args:
             tolerance: Face matching threshold
                        - InsightFace: 0.4 (cosine similarity, higher = stricter)
                        - Dlib: 0.6 (distance, lower = stricter)
             backend: 'insightface' (default) or 'dlib'
+            embedding_repo: Optional repository for DI (testing)
         """
         self._backend_type = backend
         self._tolerance = tolerance
         self._known_encodings: Dict[str, List[np.ndarray]] = {}  # {name: [encodings]}
         self._name_to_id: Dict[str, int] = {}  # {name: user_id}
-        self._embedding_repo = EmbeddingRepository()
+        self._embedding_repo = embedding_repo or EmbeddingRepository()
         
         # Backend instances (lazy loaded)
         self._insightface_adapter = None

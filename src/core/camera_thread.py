@@ -196,18 +196,21 @@ class CameraWorker(QThread):
                 self._cap.set(cv2.CAP_PROP_BUFFERSIZE, 3)
             
             if self._cap.isOpened():
-                # Stream stabilləşməsi üçün ilk frame-ləri oxu
-                # Hikvision DVR-lar üçün daha çox frame lazımdır
-                warmup_frames = 30 if is_network_stream else 5
+                # Stream stabilization - wait for first valid frame with timeout
+                # PERFORMANCE: Don't wait fixed N frames, just get first valid one
+                warmup_start = time.time()
+                max_warmup_time = 2.0 if is_network_stream else 0.5  # seconds
                 valid_frame_count = 0
                 
-                for i in range(warmup_frames):
+                while time.time() - warmup_start < max_warmup_time:
                     ret, frame = self._cap.read()
                     if ret and frame is not None and frame.size > 0:
                         valid_frame_count += 1
-                    time.sleep(0.05)  # 50ms gözlə
+                        if valid_frame_count >= 3:  # At least 3 valid frames
+                            break
+                    time.sleep(0.05)  # 50ms between attempts
                 
-                logger.info(f"Warmup: {valid_frame_count}/{warmup_frames} valid frames")
+                logger.info(f"Warmup: {valid_frame_count} valid frames in {time.time() - warmup_start:.2f}s")
                 
                 # Kamera parametrlərini oxu
                 width = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))

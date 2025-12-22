@@ -38,11 +38,11 @@ def _get_license_salt() -> str:
     if salt:
         return salt
     
-    # Fallback: Check for salt file in secure location (for PyInstaller builds)
-    # This file should NOT be in version control
+    # Fallback: Check for salt file in SECURE location only (user home directory)
+    # SECURITY: Never search in project directory - it could be exposed in version control
     salt_file_locations = [
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.license_salt'),
-        os.path.join(os.path.expanduser('~'), '.facepro_license_salt'),
+        os.path.join(os.path.expanduser('~'), '.facepro', 'license_salt'),  # Primary secure location
+        os.path.join(os.path.expanduser('~'), '.facepro_license_salt'),     # Legacy fallback
     ]
     
     for salt_file in salt_file_locations:

@@ -1,15 +1,15 @@
 
 import numpy as np
 import time
-from typing import List, Tuple, Optional, Dict
+from typing import List, Tuple, Optional, Dict, TYPE_CHECKING
 
 from src.utils.logger import get_logger
 from src.utils.helpers import crop_person
 
 from src.core.detection import Detection
 from src.core.face_recognizer import FaceRecognizer
-from src.core.reid_engine import get_reid_engine
-from src.core.gait_engine import get_gait_engine
+from src.core.reid_engine import get_reid_engine, ReIDEngine
+from src.core.gait_engine import get_gait_engine, GaitEngine
 from src.core.gait_buffer import GaitBufferManager
 from src.core.database.repositories.embedding_repository import EmbeddingRepository
 from src.core.services.matching_service import MatchingService
@@ -23,30 +23,49 @@ class RecognitionService:
     - Person Re-Identification (Body)
     - Gait Recognition
     - Passive Enrollment dispatch
+    
+    Supports Dependency Injection for testing:
+        service = RecognitionService(
+            storage_worker=mock_worker,
+            face_recognizer=mock_fr,
+            reid_engine=mock_reid
+        )
     """
     
     # Re-ID Passive Enrollment Constants
     REID_SAMPLE_INTERVAL = 2.0       # saniyə - sampling intervalı
     REID_MIN_SAMPLES = 10            # minimum sample sayı
-    REID_MAX_SAMPLES = 50            # maksimum sample sayı
+    REID_MAX_SAMPLES = 20            # maksimum sample sayı (PERFORMANCE: reduced from 50)
     
-    def __init__(self, storage_worker):
+    def __init__(
+        self, 
+        storage_worker,
+        # DI: Optional dependencies for testing
+        face_recognizer: Optional[FaceRecognizer] = None,
+        reid_engine: Optional[ReIDEngine] = None,
+        gait_engine: Optional[GaitEngine] = None,
+        matching_service: Optional[MatchingService] = None,
+        embedding_repo: Optional[EmbeddingRepository] = None
+    ):
         self._storage_worker = storage_worker
         
-        # Core Engines
-        self._face_recognizer = FaceRecognizer()
-        self._reid_engine = get_reid_engine()
-        self._gait_engine = get_gait_engine()
+        # DI: Use injected dependencies or create defaults
+        self._face_recognizer = face_recognizer or FaceRecognizer()
+        self._reid_engine = reid_engine or get_reid_engine()
+        self._gait_engine = gait_engine or get_gait_engine()
         
-        # Vector Matching Service
-        self._matching_service = MatchingService()
+        # Vector Matching Service (also supports DI)
+        self._matching_service = matching_service or MatchingService(
+            reid_engine=self._reid_engine,
+            gait_engine=self._gait_engine
+        )
         
-        # Buffers
+        # Buffers (these are lightweight, no need for DI)
         self._gait_buffer = GaitBufferManager()
         self._gait_enrollment_buffer = GaitBufferManager()
         
         # Repository
-        self._embedding_repo = EmbeddingRepository()
+        self._embedding_repo = embedding_repo or EmbeddingRepository()
         
         # Per-user Re-ID sampling tracking
         self._user_reid_samples: Dict[int, int] = {}      # user_id -> sample count

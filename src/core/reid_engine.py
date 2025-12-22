@@ -98,8 +98,12 @@ class ReIDEngine:
         # Model yüklə
         try:
             if self._model_path and os.path.exists(self._model_path):
-                # Custom model
-                self._model = torch.load(self._model_path, map_location=self._device)
+                # Custom model - weights_only=True for security (prevents pickle code execution)
+                self._model = torch.load(
+                    self._model_path, 
+                    map_location=self._device,
+                    weights_only=True  # Security: Prevent arbitrary code execution
+                )
                 logger.info(f"Custom ReID model loaded: {self._model_path}")
             else:
                 # Pretrained EfficientNet-B0

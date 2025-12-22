@@ -387,8 +387,10 @@ class MainWindow(QMainWindow):
         self.logs_page.update_count(self.logs_page.logs_list.count())
         
         # Save event using async StorageWorker
+        # PERFORMANCE: Only copy frame for unknown persons (saves memory/CPU)
         if self._storage_worker:
-            self._storage_worker.add_task(detection, frame)
+            frame_to_save = frame.copy() if (frame is not None and not is_known) else None
+            self._storage_worker.add_task(detection, frame_to_save)
             # When new event is added, we should logically increase offset 
             # if we want 'Load More' to stay consistent. But since it's at top, 
             # it's tricky. For now, we just update UI.
