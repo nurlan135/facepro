@@ -147,7 +147,8 @@ class AuthManager(QObject):
             return False, "Failed to create account"
             
         except Exception as e:
-            return False, f"Database error: {str(e)}"
+            logger.error(f"Create account error: {e}")
+            return False, "An error occurred while creating the account"
     
     def list_accounts(self) -> List[UserAccount]:
         """Get list of all user accounts."""
@@ -226,7 +227,8 @@ class AuthManager(QObject):
             return False, "Delete failed"
             
         except Exception as e:
-            return False, f"Database error: {str(e)}"
+            logger.error(f"Delete account error: {e}")
+            return False, "An error occurred while deleting the account"
     
     def has_accounts(self) -> bool:
         """Check if any user accounts exist."""
@@ -263,13 +265,15 @@ class AuthManager(QObject):
                     'failed_attempts': 0, 'is_locked': 0, 'lock_until': None
                 })
                 
-                self._current_session = SessionData(
-                    user_id=user['id'],
-                    username=user['username'],
-                    role=user['role'],
-                    login_time=datetime.now(),
-                    last_activity=datetime.now()
-                )
+                # Thread-safe session creation
+                with self._session_lock:
+                    self._current_session = SessionData(
+                        user_id=user['id'],
+                        username=user['username'],
+                        role=user['role'],
+                        login_time=datetime.now(),
+                        last_activity=datetime.now()
+                    )
                 get_audit_logger().log("LOGIN", {"username": username}, user_id=user['id'])
                 return True, "Login successful"
             else:
@@ -288,32 +292,37 @@ class AuthManager(QObject):
                     return False, f"Invalid username or password. {remaining} attempts remaining"
                     
         except Exception as e:
-            return False, f"Authentication error: {str(e)}"
+            logger.error(f"Authentication error: {e}")
+            return False, "Authentication failed. Please try again."
     
     def logout(self) -> None:
         """
         End current session and clear session data.
         
+        Thread-safe: Uses _session_lock for session operations.
         Emits logout_requested signal for camera cleanup.
         Requirements: 7.1, 7.2, 7.3
         """
-        if self._current_session is not None:
-            # Log the action
-            get_audit_logger().log("LOGOUT", {"username": self._current_session.username}, user_id=self._current_session.user_id)
-            
-            # Clear session data
-            self._current_session = None
-            
-            # Emit signal for camera cleanup and UI updates
-            self.logout_requested.emit()
+        with self._session_lock:
+            if self._current_session is not None:
+                # Log the action (before clearing session)
+                get_audit_logger().log("LOGOUT", {"username": self._current_session.username}, user_id=self._current_session.user_id)
+                
+                # Clear session data
+                self._current_session = None
+        
+        # Emit signal outside lock to prevent deadlocks
+        self.logout_requested.emit()
     
     def is_logged_in(self) -> bool:
-        """Check if user is currently logged in."""
-        return self._current_session is not None
+        """Check if user is currently logged in. Thread-safe."""
+        with self._session_lock:
+            return self._current_session is not None
     
     def get_current_user(self) -> Optional[SessionData]:
-        """Get current logged-in user session data."""
-        return self._current_session
+        """Get current logged-in user session data. Thread-safe."""
+        with self._session_lock:
+            return self._current_session
     
     # =========================================================================
     # Session Management
@@ -321,7 +330,7 @@ class AuthManager(QObject):
     
     def check_session_timeout(self) -> bool:
         """
-        Check if session has timed out.
+        Check if session has timed out. Thread-safe.
         
         Returns:
             True if session is still valid, False if timed out
@@ -329,12 +338,18 @@ class AuthManager(QObject):
         Emits session_timeout signal if session has expired.
         Requirements: 6.1, 6.2, 6.3
         """
-        if self._current_session is None:
-            return False
+        should_logout = False
         
-        elapsed = datetime.now() - self._current_session.last_activity
-        if elapsed.total_seconds() > (self._session_timeout_minutes * 60):
-            # Emit timeout signal before logout
+        with self._session_lock:
+            if self._current_session is None:
+                return False
+            
+            elapsed = datetime.now() - self._current_session.last_activity
+            if elapsed.total_seconds() > (self._session_timeout_minutes * 60):
+                should_logout = True
+        
+        if should_logout:
+            # Emit timeout signal before logout (outside lock to prevent deadlocks)
             self.session_timeout.emit()
             self.logout()
             return False
@@ -342,9 +357,10 @@ class AuthManager(QObject):
         return True
     
     def reset_activity_timer(self) -> None:
-        """Reset the last activity timestamp."""
-        if self._current_session:
-            self._current_session.last_activity = datetime.now()
+        """Reset the last activity timestamp. Thread-safe."""
+        with self._session_lock:
+            if self._current_session:
+                self._current_session.last_activity = datetime.now()
     
     def set_session_timeout(self, minutes: int) -> None:
         """Set session timeout duration in minutes."""
@@ -378,7 +394,8 @@ class AuthManager(QObject):
             return False, "Change failed"
             
         except Exception as e:
-            return False, f"Database error: {str(e)}"
+            logger.error(f"Change password error: {e}")
+            return False, "An error occurred while changing the password"
     
     # =========================================================================
     # Role-Based Access Control

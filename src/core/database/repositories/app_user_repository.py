@@ -52,13 +52,44 @@ class AppUserRepository:
         columns, rows = self.db.execute_read_with_columns(query)
         return [dict(zip(columns, row)) for row in rows]
 
+    # Security: Whitelist of allowed columns for update operations
+    # This prevents SQL Injection when dynamically building UPDATE queries
+    ALLOWED_UPDATE_COLUMNS = frozenset({
+        'password_hash',
+        'salt',
+        'role',
+        'is_locked',
+        'lock_until',
+        'failed_attempts'
+    })
+
     def update_user(self, user_id: int, updates: Dict[str, Any]) -> bool:
         """
         Update user fields.
-        updates: dict of {column: value}
+        
+        Security: Only columns in ALLOWED_UPDATE_COLUMNS can be updated.
+        This prevents SQL Injection attacks via dynamic column names.
+        
+        Args:
+            user_id: User ID to update
+            updates: dict of {column: value} - only whitelisted columns allowed
+            
+        Returns:
+            True if update was successful
+            
+        Raises:
+            ValueError: If any column name is not in the whitelist
         """
         if not updates:
             return False
+        
+        # Security: Validate all column names against whitelist
+        invalid_columns = set(updates.keys()) - self.ALLOWED_UPDATE_COLUMNS
+        if invalid_columns:
+            from src.utils.logger import get_logger
+            logger = get_logger()
+            logger.error(f"SQL Injection attempt blocked: Invalid columns {invalid_columns}")
+            raise ValueError(f"Invalid column names: {invalid_columns}")
             
         set_parts = []
         params = []

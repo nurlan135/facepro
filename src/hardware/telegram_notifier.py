@@ -158,12 +158,30 @@ class TelegramNotifier:
         bot_token = os.environ.get('FACEPRO_TELEGRAM_TOKEN', '')
         chat_id = os.environ.get('FACEPRO_TELEGRAM_CHAT_ID', '')
         
+        credentials_from_env = bool(bot_token and chat_id)
+        
         # Fallback to config file if env vars not set
         if not bot_token or not chat_id:
             config = load_config()
             telegram_config = config.get('telegram', {})
-            bot_token = bot_token or telegram_config.get('bot_token', '')
-            chat_id = chat_id or telegram_config.get('chat_id', '')
+            
+            config_token = telegram_config.get('bot_token', '')
+            config_chat_id = telegram_config.get('chat_id', '')
+            
+            # Use config values only if env vars are missing
+            if not bot_token and config_token:
+                bot_token = config_token
+            if not chat_id and config_chat_id:
+                chat_id = config_chat_id
+            
+            # Security Warning: Credentials in config file are a security risk
+            if (config_token or config_chat_id) and not credentials_from_env:
+                logger.warning(
+                    "SECURITY WARNING: Telegram credentials loaded from config file! "
+                    "This is insecure - config files may be exposed in version control. "
+                    "Use environment variables instead: "
+                    "FACEPRO_TELEGRAM_TOKEN and FACEPRO_TELEGRAM_CHAT_ID"
+                )
         
         return cls(bot_token=bot_token, chat_id=chat_id)
     

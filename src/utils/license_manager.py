@@ -55,12 +55,21 @@ def _get_license_salt() -> str:
             except Exception:
                 pass
     
-    # If no salt is found, raise an error with clear instructions
-    raise RuntimeError(
-        "License salt not configured!\n"
-        "Set FACEPRO_LICENSE_SALT environment variable or create .license_salt file.\n"
-        "Contact administrator for the correct salt value."
+    # If no salt is found, use development fallback with critical warning
+    # This allows the app to start, but license validation will fail for real keys
+    from src.utils.logger import get_logger
+    logger = get_logger()
+    
+    logger.critical(
+        "LICENSE SALT NOT CONFIGURED! "
+        "Set FACEPRO_LICENSE_SALT environment variable or create ~/.facepro/license_salt file. "
+        "Using development fallback - real licenses will NOT work!"
     )
+    
+    # Development-only fallback salt
+    # WARNING: This is intentionally weak and should NEVER be used in production
+    # Real license keys generated with proper salt will NOT validate with this
+    return "__FACEPRO_DEV_SALT_2025__"
 
 # License file location
 _LICENSE_FILE = ".license"

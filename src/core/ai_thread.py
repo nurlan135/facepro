@@ -108,7 +108,9 @@ class AIWorker(QThread):
     def _process_frame(self, frame: np.ndarray, camera_name: str) -> FrameResult:
         """Single Frame Processing Pipeline."""
         start_time = time.time()
-        result = FrameResult(frame=frame.copy(), camera_name=camera_name)
+        
+        # PERFORMANCE: Don't copy frame immediately - only copy if needed for detection display
+        result = FrameResult(frame=None, camera_name=camera_name)
         
         # 1. Detection Service (Motion + Objects + ROI)
         motion_detected, detections = self._detection_service.detect(frame, camera_name)
@@ -124,6 +126,12 @@ class AIWorker(QThread):
                 self._recognition_service.process_identity(frame, detection)
         
         result.detections = detections
+        
+        # PERFORMANCE: Only copy frame if there are detections to display
+        # This saves ~6MB per frame (1080p) when no detections
+        if detections:
+            result.frame = frame.copy()
+        
         result.processing_time_ms = (time.time() - start_time) * 1000
         return result
     
@@ -134,7 +142,10 @@ class AIWorker(QThread):
         return self._recognition_service.add_known_face(name, face_image)
     
     def process_frame(self, frame: np.ndarray, camera_name: str = "Camera"):
+        """Queue frame for AI processing. Thread-safe - frame is copied."""
         with QMutexLocker(self._mutex):
+            # NOTE: Copy is required here for thread safety - frame may be modified
+            # by camera thread while AI thread processes it
             self._frame_buffer = (frame.copy(), camera_name)
 
     def stop(self):
