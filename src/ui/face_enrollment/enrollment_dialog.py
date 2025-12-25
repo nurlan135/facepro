@@ -19,7 +19,8 @@ from PyQt6.QtGui import QImage, QPixmap
 
 from src.utils.logger import get_logger
 from src.utils.helpers import ensure_dir, cv2_to_qpixmap
-from src.ui.styles import DARK_THEME, COLORS
+from src.ui.styles import COLORS, CYBER_THEME
+from src.utils.i18n import tr
 from src.core.database.repositories.user_repository import UserRepository
 from src.core.database.repositories.embedding_repository import EmbeddingRepository
 from src.core.face_recognizer import FaceRecognizer
@@ -80,21 +81,30 @@ class FaceEnrollmentDialog(QDialog):
         
     def _setup_ui(self):
         self.setWindowTitle("Yeni Üz Əlavə Et")
-        self.setFixedSize(600, 700)
-        self.setStyleSheet(DARK_THEME)
+        self.setFixedSize(600, 750)
+        self.setStyleSheet(CYBER_THEME)
         
         layout = QVBoxLayout(self)
         layout.setSpacing(20)
         
-        # Title
+        # Header
+        header_widget = QWidget()
+        header_widget.setStyleSheet(f"background: {COLORS.get('bg_panel', '#000')}; border-bottom: 1px solid {COLORS.get('border_tech', '#333')};")
+        header_layout = QHBoxLayout(header_widget)
+        
         title = QLabel("Yeni Şəxs Qeydiyyatı")
-        title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {COLORS['text_primary']};")
-        layout.addWidget(title, alignment=Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {COLORS.get('cyber_cyan', '#0FF')}; letter-spacing: 1px;")
+        header_layout.addWidget(title)
+        
+        layout.addWidget(header_widget)
         
         # Preview Area
         self.preview_lbl = QLabel()
         self.preview_lbl.setFixedSize(480, 360)
-        self.preview_lbl.setStyleSheet(f"background-color: black; border: 2px solid {COLORS['border']}; border-radius: 8px;")
+        self.preview_lbl.setStyleSheet(f"""
+            background-color: black; 
+            border: 1px solid {COLORS.get('border_tech', '#333')};
+        """)
         self.preview_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         preview_container = QHBoxLayout()
@@ -103,19 +113,22 @@ class FaceEnrollmentDialog(QDialog):
         preview_container.addStretch()
         layout.addLayout(preview_container)
         
-        # Buttons (Capture / Upload)
+        # Buttons
         btn_layout = QHBoxLayout()
         
         self.btn_capture = QPushButton("📷 Şəkil Çək")
-        self.btn_capture.setStyleSheet(self._btn_style(COLORS['primary']))
+        self.btn_capture.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_capture.setStyleSheet(self._btn_style(COLORS.get('cyber_cyan', '#0FF'), text_color='black'))
         self.btn_capture.clicked.connect(self._capture_frame)
         
         self.btn_upload = QPushButton("📂 Fayl Yüklə")
-        self.btn_upload.setStyleSheet(self._btn_style(COLORS['secondary']))
+        self.btn_upload.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_upload.setStyleSheet(self._btn_style(COLORS.get('bg_panel', '#333'), text_color=COLORS.get('text_main', '#FFF'), border=True))
         self.btn_upload.clicked.connect(self._upload_file)
         
-        self.btn_retake = QPushButton("🔄 Yenidən")
-        self.btn_retake.setStyleSheet(self._btn_style(COLORS['warning']))
+        self.btn_retake = QPushButton("🔄")
+        self.btn_retake.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_retake.setStyleSheet(self._btn_style(COLORS.get('alert_red', '#F00')))
         self.btn_retake.clicked.connect(self._retake)
         self.btn_retake.hide()
         
@@ -126,33 +139,60 @@ class FaceEnrollmentDialog(QDialog):
         
         # Form
         form_frame = QFrame()
-        form_frame.setStyleSheet(f"background-color: {COLORS['bg_dark']}; border-radius: 8px; padding: 10px;")
+        form_frame.setStyleSheet(f"background-color: rgba(255,255,255,0.05); border-radius: 4px; padding: 15px;")
         form_layout = QFormLayout(form_frame)
+        form_layout.setSpacing(15)
         
         self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("Ad və Soyad daxil edin")
-        self.name_input.setStyleSheet(f"padding: 8px; border: 1px solid {COLORS['border']}; border-radius: 4px; color: white;")
+        self.name_input.setPlaceholderText("Ad və Soyad")
+        self.name_input.setStyleSheet(f"""
+            QLineEdit {{
+                background: rgba(0,0,0,0.3);
+                padding: 10px;
+                border: 1px solid {COLORS.get('border_tech', '#333')};
+                border-radius: 4px;
+                color: {COLORS.get('text_main', '#FFF')};
+                font-size: 14px;
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {COLORS.get('cyber_cyan', '#0FF')};
+            }}
+        """)
         
         lbl_name = QLabel("Ad Soyad:")
-        lbl_name.setStyleSheet("color: white; font-weight: bold;")
+        lbl_name.setStyleSheet(f"color: {COLORS.get('text_main', '#FFF')}; font-weight: bold;")
         
         form_layout.addRow(lbl_name, self.name_input)
         layout.addWidget(form_frame)
         
         # Status Label
         self.status_lbl = QLabel("Kamera aktivdir...")
-        self.status_lbl.setStyleSheet("color: #aaa; font-style: italic;")
+        self.status_lbl.setStyleSheet(f"color: {COLORS.get('text_muted', '#888')}; font-style: italic; font-family: 'Consolas';")
         self.status_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.status_lbl)
         
         # Action Buttons
         actions_layout = QHBoxLayout()
-        self.btn_cancel = QPushButton("Ləğv et")
-        self.btn_cancel.setStyleSheet(self._btn_style(COLORS['bg_light'], text_color=COLORS['text_primary']))
+        self.btn_cancel = QPushButton("Bağla")
+        self.btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_cancel.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                border: 1px solid {COLORS.get('border_tech', '#333')};
+                color: {COLORS.get('text_muted', '#888')};
+                padding: 10px 20px;
+                border-radius: 4px;
+            }}
+            QPushButton:hover {{
+                color: {COLORS.get('text_main', '#FFF')};
+                border-color: {COLORS.get('text_main', '#FFF')};
+            }}
+        """)
         self.btn_cancel.clicked.connect(self.reject)
         
         self.btn_save = QPushButton("Yadda Saxla")
-        self.btn_save.setStyleSheet(self._btn_style(COLORS['success']))
+        self.btn_save.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_save.setStyleSheet(self._btn_style(COLORS.get('acid_green', '#0F0'), text_color='black'))
         self.btn_save.clicked.connect(self._save)
         self.btn_save.setEnabled(False)
         
@@ -160,18 +200,21 @@ class FaceEnrollmentDialog(QDialog):
         actions_layout.addWidget(self.btn_save)
         layout.addLayout(actions_layout)
 
-    def _btn_style(self, bg_color, text_color="white"):
+    def _btn_style(self, bg_color, text_color="white", border=False):
+        border_str = f"border: 1px solid {COLORS.get('cyber_cyan', '#0FF')};" if border else "border: none;"
         return f"""
             QPushButton {{
                 background-color: {bg_color};
                 color: {text_color};
-                border: none;
-                border-radius: 6px;
+                {border_str}
+                border-radius: 4px;
                 padding: 10px 20px;
                 font-weight: bold;
+                font-family: 'Rajdhani', sans-serif;
+                font-size: 14px;
             }}
-            QPushButton:hover {{ opacity: 0.9; }}
-            QPushButton:disabled {{ background-color: #555; color: #888; }}
+            QPushButton:hover {{ opacity: 0.8; }}
+            QPushButton:disabled {{ background-color: rgba(255,255,255,0.1); color: rgba(255,255,255,0.3); border: none; }}
         """
 
     def _start_camera(self):
@@ -227,7 +270,7 @@ class FaceEnrollmentDialog(QDialog):
         
         # AI Processing (Detect Face)
         self.status_lbl.setText("Üz emal edilir...")
-        self.status_lbl.setStyleSheet("color: yellow;")
+        self.status_lbl.setStyleSheet(f"color: {COLORS.get('cyber_gold', '#f39c12')};")
         QThread.msleep(100) # UX delay
         
         try:
@@ -237,13 +280,13 @@ class FaceEnrollmentDialog(QDialog):
             
             if len(encodings) == 0:
                 self.status_lbl.setText("❌ Üz tapılmadı! Zəhmət olmasa yenidən cəhd edin.")
-                self.status_lbl.setStyleSheet("color: #e74c3c;")
+                self.status_lbl.setStyleSheet(f"color: {COLORS.get('alert_red', '#e74c3c')};")
                 self._enable_retake(True)
                 return
             
             if len(encodings) > 1:
                 self.status_lbl.setText("⚠️ Birdən çox üz tapıldı! Yalnız bir nəfər olmalıdır.")
-                self.status_lbl.setStyleSheet("color: #f39c12;")
+                self.status_lbl.setStyleSheet(f"color: {COLORS.get('cyber_gold', '#f39c12')};")
                 self._enable_retake(True)
                 return
             
@@ -251,13 +294,13 @@ class FaceEnrollmentDialog(QDialog):
             is_good, q_msg, q_score = self._quality_service.check_quality(image)
             if not is_good:
                 self.status_lbl.setText(f"❌ {q_msg}")
-                self.status_lbl.setStyleSheet("color: #e74c3c;")
+                self.status_lbl.setStyleSheet(f"color: {COLORS.get('alert_red', '#e74c3c')};")
                 self._enable_retake(True)
                 return
                 
             self._face_encoding = encodings[0]
             self.status_lbl.setText(f"✅ Üz aşkarlandı! (Keyfiyyət score: {q_score:.0f})")
-            self.status_lbl.setStyleSheet("color: #2ecc71;")
+            self.status_lbl.setStyleSheet(f"color: {COLORS.get('acid_green', '#2ecc71')};")
             
             self._enable_retake(True)
             self.btn_save.setEnabled(True)

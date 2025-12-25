@@ -126,6 +126,7 @@
         "audit_user": "Пользователь",
         "audit_action": "Действие",
         "audit_details": "Детали",
+        "btn_apply": "Применить",
         "btn_save": "Сохранить",
         "btn_cancel": "Отмена",
         "language": "Язык",
@@ -319,6 +320,18 @@
         "success_msg": "Лицо для '{name}' успешно сохранено!",
         "capture_help": "Пробел - Снять, ESC - Отмена"
     },
+    "audit_actions": {
+        "login": "Вход",
+        "logout": "Выход",
+        "face_enrolled": "Лицо Добавлено",
+        "person_deleted": "Персона Удалена",
+        "encoding_deleted": "Вектор Удален",
+        "user_created": "Пользователь Создан",
+        "user_deleted": "Пользователь Удален",
+        "database_restored": "База Восстановлена",
+        "backup_created": "Бэкап Создан",
+        "settings_change": "Настройки Изменены"
+    },
     "common": {
         "logout_confirm_title": "Выход",
         "logout_confirm_msg": "Вы уверены, что хотите выйти?",
@@ -330,12 +343,26 @@
         "events_export": "Экспорт",
         "msg_error": "Ошибка",
         "msg_success": "Успешно",
-        "msg_language_changed": "Язык успешно изменён!"
+        "msg_language_changed": "Язык успешно изменён!",
+        "btn_yes": "Да",
+        "btn_no": "Нет",
+        "exit_confirm_msg": "Система работает. Выйти?"
     },
     "errors": {
         "camera_connection": "Не удаётся подключиться к камере",
         "database_error": "Ошибка базы данных",
         "disk_full": "Заканчивается место на диске",
         "model_load_failed": "Не удалось загрузить модель ИИ"
+    },
+    "cyber": {
+        "init_system": "ЗАПУСТИТЬ_СИСТЕМУ",
+        "system_offline": "СИСТЕМА ОТКЛЮЧЕНА",
+        "live_log": "ЖИВОЙ ЛОГ // РЕАЛЬНОЕ ВРЕМЯ",
+        "vector_search": "ПРОТОКОЛ ВЕКТОРНОГО ПОИСКА",
+        "press_init": "НАЖМИТЕ [INIT_SYSTEM]",
+        "signal_lost": "СИГНАЛ ПОТЕРЯН",
+        "linking": "ПОДКЛЮЧЕНИЕ...",
+        "link_failure": "ОШИБКА СВЯЗИ",
+        "waiting": "ОЖИДАНИЕ ПОТОКА..."
     }
 }

@@ -143,7 +143,7 @@ class Translator(QObject):
             "audit_action": "settings.audit_action",
             "audit_details": "settings.audit_details",
             "btn_save": "settings.btn_save",
-            "btn_apply": "settings.btn_save", # Map to save if apply not exists
+            "btn_apply": "settings.btn_apply",
             "btn_cancel": "settings.btn_cancel",
             "lbl_language": "settings.language",
             "lbl_theme": "settings.theme",

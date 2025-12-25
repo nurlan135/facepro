@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QGroupBox,
     QComboBox, QCheckBox, QPushButton
 )
+from PyQt6.QtCore import Qt
 
 from src.utils.i18n import tr
 
@@ -44,11 +45,15 @@ class GeneralTab(QWidget):
         layout.addWidget(app_group)
         
         # Maintenance Section
-        maint_group = QGroupBox("Baxım (Maintenance)")
+        maint_group = QGroupBox("BAXIM (MAINTENANCE)")
         maint_layout = QVBoxLayout(maint_group)
         
-        self.btn_backup_dialog = QPushButton(f"📁 {tr('btn_backup_restore') if tr('btn_backup_restore') != 'btn_backup_restore' else 'Backup və Geri Yükləmə'}")
-        self.btn_backup_dialog.setProperty("class", "secondary")
+        backup_text = tr('btn_backup_restore')
+        if backup_text == 'btn_backup_restore':
+             backup_text = 'Backup və Geri Yükləmə'
+             
+        self.btn_backup_dialog = QPushButton(backup_text.upper())
+        self.btn_backup_dialog.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_backup_dialog.clicked.connect(self._open_backup_dialog)
         maint_layout.addWidget(self.btn_backup_dialog)
         

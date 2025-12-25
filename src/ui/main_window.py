@@ -40,7 +40,7 @@ from src.utils.helpers import (
     load_config, load_cameras, save_snapshot, 
     get_timestamp, get_db_path
 )
-from src.ui.styles import DARK_THEME, COLORS
+from src.ui.styles import CYBER_THEME, COLORS
 from src.ui.settings_dialog import SettingsDialog
 from src.ui.face_enrollment import FaceEnrollmentDialog, ManageFacesDialog
 from src.core.camera_thread import CameraConfig, CameraManager
@@ -51,7 +51,7 @@ from src.core.storage_worker import StorageWorker
 from src.core.workers.data_loader import DataLoaderWorker
 
 # Dashboard components
-from src.ui.dashboard import SidebarWidget, HomePage, CameraPage, LogsPage, ActivityItem
+from src.ui.dashboard import SidebarWidget, HomePage, LogsPage, ActivityItem
 
 # Auth components
 from src.utils.auth_manager import get_auth_manager
@@ -90,8 +90,8 @@ class MainWindow(QMainWindow):
         self._logs_offset = 0
         
         self.setWindowTitle("FacePro - Smart Security System")
-        self.resize(1366, 768)
-        self.setStyleSheet(DARK_THEME)
+        self.resize(1600, 900)  # Larger default for Dashboard
+        self.setStyleSheet(CYBER_THEME)
         
         self._setup_ui()
         self._setup_tray()
@@ -113,82 +113,118 @@ class MainWindow(QMainWindow):
         logger.info("MainWindow initialized (Dashboard Design)")
 
     def _setup_ui(self):
-        """UI setup - Dashboard Layout."""
+        """UI setup - Cyber-Brutalist Dashboard Layout."""
         central = QWidget()
+        central.setObjectName("CentralWidget") 
         self.setCentralWidget(central)
         
-        main_layout = QHBoxLayout(central)
+        # Main vertical layout (Header + Content)
+        main_layout = QVBoxLayout(central)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
         
-        # Sidebar
+        # --- HEADER ---
+        self._setup_header(main_layout)
+        
+        # --- CONTENT BODY (Sidebar + Pages) ---
+        body_layout = QHBoxLayout()
+        body_layout.setSpacing(0)
+        
+        # Sidebar (Compact)
         self.sidebar = SidebarWidget()
+        # Connect signals
         self.sidebar.manage_faces_clicked.connect(self._manage_faces)
         self.sidebar.settings_clicked.connect(self._show_settings)
         self.sidebar.user_management_clicked.connect(self._show_user_management)
         self.sidebar.change_password_clicked.connect(self._show_change_password)
         self.sidebar.logout_clicked.connect(self._logout)
         self.sidebar.exit_clicked.connect(self._quit_application)
-        main_layout.addWidget(self.sidebar)
+        
+        body_layout.addWidget(self.sidebar)
         
         # Main Content Area
         content_area = QWidget()
+        content_area.setProperty("class", "content_area")
         content_layout = QVBoxLayout(content_area)
-        content_layout.setContentsMargins(30, 30, 30, 30)
-        
-        # Top Navigation (Tabs centered)
-        top_nav_layout = QHBoxLayout()
-        top_nav_layout.addStretch()
-        
-        self.nav_tabs = QTabWidget()
-        self.nav_tabs.addTab(QWidget(), tr('tab_home'))
-        self.nav_tabs.addTab(QWidget(), tr('tab_camera'))
-        self.nav_tabs.addTab(QWidget(), tr('tab_logs'))
-        self.nav_tabs.setFixedHeight(50)
-        self.nav_tabs.currentChanged.connect(self._on_tab_changed)
-        
-        top_nav_layout.addWidget(self.nav_tabs)
-        top_nav_layout.addStretch()
-        content_layout.addLayout(top_nav_layout)
+        content_layout.setContentsMargins(0, 0, 0, 0) # No margins for edge-to-edge look
         
         # Stacked Pages
         self.pages = QStackedWidget()
         
-        # Page 0: Dashboard Home
+        # Page 0: Dashboard (Grid + Right Panel)
         self.home_page = HomePage()
         self.home_page.start_camera_clicked.connect(self._toggle_running_from_card)
         self.home_page.add_face_clicked.connect(self._add_known_face)
-        self.home_page.view_logs_clicked.connect(lambda: self.nav_tabs.setCurrentIndex(2))
         self.pages.addWidget(self.home_page)
         
-        # Page 1: Camera View
-        self.camera_page = CameraPage()
-        self.camera_page.select_camera_clicked.connect(self._show_camera_selector)
-        self.camera_page.start_clicked.connect(self._start_system)
-        self.camera_page.stop_clicked.connect(self._stop_system)
-        self.pages.addWidget(self.camera_page)
-        
-        # Page 2: Logs View
+        # Page 1: Full Logs
         self.logs_page = LogsPage()
         self.logs_page.export_clicked.connect(self._export_events)
         self.logs_page.load_more_clicked.connect(self._on_load_more_logs)
         self.pages.addWidget(self.logs_page)
         
-        # Load initial events
-        self._load_initial_events()
-        
         content_layout.addWidget(self.pages)
-        main_layout.addWidget(content_area)
+        body_layout.addWidget(content_area)
+        
+        main_layout.addLayout(body_layout)
+        
+        # Init components
+        self._load_initial_events()
+
+    def _setup_header(self, parent_layout):
+        """Creates the Cyber-Brutalist Header."""
+        header_frame = QWidget() # Using QWidget for style support
+        header_frame.setProperty("class", "header")
+        header_frame.setFixedHeight(60)
+        
+        header_layout = QHBoxLayout(header_frame)
+        header_layout.setContentsMargins(20, 0, 20, 0)
+        
+        # Brand
+        brand_layout = QVBoxLayout()
+        brand_layout.setSpacing(0)
+        brand_layout.setContentsMargins(0, 10, 0, 10)
+        
+        title = QLabel("FACE//GUARD//PRO")
+        title.setProperty("class", "brand_title")
+        subtitle = QLabel("Unauthorized Access Prohibited")
+        subtitle.setProperty("class", "brand_subtitle")
+        
+        brand_layout.addWidget(title)
+        brand_layout.addWidget(subtitle)
+        header_layout.addLayout(brand_layout)
+        
+        header_layout.addStretch()
+        
+        # System Stats (Placeholder for now, can be dynamic)
+        stats_widget = QWidget()
+        stats_layout = QHBoxLayout(stats_widget)
+        
+        def create_stat(label, value, color_code):
+            lbl = QLabel(f"{label}: {value}")
+            lbl.setStyleSheet(f"font-family: 'Consolas'; font-size: 12px; color: {color_code}; font-weight: bold;")
+            return lbl
+
+        stats_layout.addWidget(create_stat("CPU_LOAD", "12%", COLORS['text_main']))
+        stats_layout.addSpacing(15)
+        stats_layout.addWidget(create_stat("MEM_ALLOC", "1.4GB", COLORS['text_main']))
+        stats_layout.addSpacing(15)
+        stats_layout.addWidget(create_stat("SYS_STATUS", "SECURE", COLORS['acid_green']))
+        
+        header_layout.addWidget(stats_widget)
+        
+        parent_layout.addWidget(header_frame)
 
     def _on_tab_changed(self, index):
-        """Tab dəyişdikdə səhifəni dəyiş."""
-        self.pages.setCurrentIndex(index)
+        """Tab dəyişdikdə səhifəni dəyiş. (Legacy - kept if safe)"""
+        if hasattr(self, 'pages') and hasattr(self, 'nav_tabs'):
+             self.pages.setCurrentIndex(index)
 
     def _toggle_running_from_card(self):
         """Dashboard kartından sistemi başlat/dayandır."""
         self._toggle_running()
-        if self._is_running:
-            self.nav_tabs.setCurrentIndex(1)
+        # if self._is_running:
+        #    self.nav_tabs.setCurrentIndex(1) # Legacy navigation
 
     def _toggle_running(self):
         """Sistemi başlat/dayandır."""
@@ -213,7 +249,7 @@ class MainWindow(QMainWindow):
     def _on_camera_selected(self, name):
         """Mövcud kameranı seç."""
         self._selected_camera_name = name
-        self.camera_page.set_camera_status(name)
+        # self.camera_page.set_camera_status(name) # LEGACY
         QMessageBox.information(
             self, 
             tr('camera_dialog.camera_selected'), 
@@ -229,7 +265,7 @@ class MainWindow(QMainWindow):
             camera_data = dialog.get_camera_data()
             if camera_data:
                 self._cameras_config.append(camera_data)
-                self.camera_page.set_camera_status(camera_data.get('name', ''))
+                # self.camera_page.set_camera_status(camera_data.get('name', '')) # LEGACY
     
     def _on_add_rtsp_camera(self):
         """RTSP kamera seçimi."""
@@ -240,7 +276,7 @@ class MainWindow(QMainWindow):
             camera_data = dialog.get_camera_data()
             if camera_data:
                 self._cameras_config.append(camera_data)
-                self.camera_page.set_camera_status(camera_data.get('name', ''))
+                # self.camera_page.set_camera_status(camera_data.get('name', '')) # LEGACY
 
     def _start_system(self):
         """Sistemi başladır."""
@@ -268,7 +304,7 @@ class MainWindow(QMainWindow):
                 roi_points=cam_cfg.get('roi_points', [])
             )
             worker = self._camera_manager.add_camera(config)
-            self.camera_page.video_grid.add_camera_view(config.name)
+            self.home_page.video_grid.add_camera_view(config.name)
             
             # Connect signals from each worker
             worker.frame_ready.connect(self._on_camera_frame)
@@ -288,12 +324,13 @@ class MainWindow(QMainWindow):
         self._camera_manager.start_all()
         
         self._is_running = True
-        self.camera_page.set_running_state(True)
+        self.home_page.btn_start.setEnabled(False) 
+        # self.camera_page.set_running_state(True) # Legacy
         
         # Update camera status label
         if self._cameras_config:
             camera_info = self._cameras_config[0].get('name', self._cameras_config[0].get('source', ''))
-            self.camera_page.set_camera_status(camera_info)
+            # self.camera_page.set_camera_status(camera_info) # Legacy
         
         if self._telegram_notifier:
             self._telegram_notifier.send_startup_message()
@@ -313,11 +350,12 @@ class MainWindow(QMainWindow):
             self._storage_worker.stop()
             self._storage_worker.wait(1000)
         
-        self.camera_page.video_grid.clear_all()
+        self.home_page.video_grid.clear_all()
         
         self._is_running = False
-        self.camera_page.set_running_state(False)
-        self.camera_page.set_camera_status("")  # Reset status
+        self.home_page.btn_start.setEnabled(True)
+        # self.camera_page.set_running_state(False) # Legacy
+        # self.camera_page.set_camera_status("")  # Reset status
         
         logger.info("System stopped")
         
@@ -331,7 +369,7 @@ class MainWindow(QMainWindow):
     
     @pyqtSlot(bool, str)
     def _on_camera_status(self, connected: bool, camera_name: str):
-        widget = self.camera_page.video_grid.get_widget(camera_name)
+        widget = self.home_page.video_grid.get_widget(camera_name)
         if widget:
             widget.set_connected(connected)
 
@@ -342,7 +380,7 @@ class MainWindow(QMainWindow):
         if hasattr(result, 'processing_time_ms'):
             self.sidebar.perf_monitor.update_ai_time(result.processing_time_ms)
             
-        widget = self.camera_page.video_grid.get_widget(result.camera_name)
+        widget = self.home_page.video_grid.get_widget(result.camera_name)
         if widget and result.frame is not None:
             display_frame = draw_detections(result.frame, result.detections)
             widget.update_frame(display_frame)
@@ -557,11 +595,18 @@ class MainWindow(QMainWindow):
     
     def _logout(self):
         """Handle manual logout."""
-        reply = QMessageBox.question(
-            self, tr("logout_confirm_title"), tr("logout_confirm_msg"),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-        if reply == QMessageBox.StandardButton.Yes:
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle(tr("logout_confirm_title"))
+        msg_box.setText(tr("logout_confirm_msg"))
+        msg_box.setIcon(QMessageBox.Icon.Question)
+        
+        # Custom localized buttons
+        yes_btn = msg_box.addButton(tr("common.btn_yes"), QMessageBox.ButtonRole.YesRole)
+        no_btn = msg_box.addButton(tr("common.btn_no"), QMessageBox.ButtonRole.NoRole)
+        
+        msg_box.exec()
+        
+        if msg_box.clickedButton() == yes_btn:
             self._auth_manager.logout()
     
     @pyqtSlot()
@@ -680,11 +725,17 @@ class MainWindow(QMainWindow):
     def _quit_application(self):
         # Stop system if running
         if self._is_running:
-            reply = QMessageBox.question(
-                self, "Exit", "System is running. Exit?", 
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-            )
-            if reply == QMessageBox.StandardButton.No: 
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle(tr("menu.exit"))
+            msg_box.setText(tr("common.exit_confirm_msg"))
+            msg_box.setIcon(QMessageBox.Icon.Question)
+            
+            yes_btn = msg_box.addButton(tr("common.btn_yes"), QMessageBox.ButtonRole.YesRole)
+            no_btn = msg_box.addButton(tr("common.btn_no"), QMessageBox.ButtonRole.NoRole)
+            
+            msg_box.exec()
+            
+            if msg_box.clickedButton() != yes_btn: 
                 return
             self._stop_system()
         
@@ -727,14 +778,14 @@ class MainWindow(QMainWindow):
         logger.info(f"Language changed to: {lang_code}")
         
         # Update Tabs
-        self.nav_tabs.setTabText(0, tr('tab_home'))
-        self.nav_tabs.setTabText(1, tr('tab_camera'))
-        self.nav_tabs.setTabText(2, tr('tab_logs'))
+        # self.nav_tabs.setTabText(0, tr('tab_home'))
+        # self.nav_tabs.setTabText(1, tr('tab_camera'))
+        # self.nav_tabs.setTabText(2, tr('tab_logs'))
         
         # Update components via their update_language methods
         self.sidebar.update_language()
         self.home_page.update_language()
-        self.camera_page.update_language()
+        # self.camera_page.update_language() # Legacy
         self.logs_page.update_language()
         
         # Update Stats

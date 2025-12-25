@@ -15,6 +15,7 @@ import numpy as np
 
 from src.utils.logger import get_logger
 from src.ui.styles import COLORS
+from src.utils.i18n import tr
 
 logger = get_logger()
 
@@ -153,7 +154,7 @@ class FacePreviewWidget(QLabel):
 
 
 class PersonCardWidget(QFrame):
-    """Şəxs kartı widget-i - üz və bədən məlumatları ilə."""
+    """Cyber-Brutalist Person Card Widget."""
     
     add_face_clicked = pyqtSignal(int, str)
     add_body_clicked = pyqtSignal(int, str)
@@ -173,157 +174,108 @@ class PersonCardWidget(QFrame):
         self._setup_ui()
     
     def _setup_ui(self):
+        # Card Style
+        cyan_color = COLORS.get('cyber_cyan', '#00F0FF')
         self.setStyleSheet(f"""
             QFrame {{
-                background-color: {COLORS['bg_light']};
-                border: 1px solid {COLORS['border']};
-                border-radius: 10px;
-                padding: 15px;
-                margin: 5px;
+                background-color: rgba(255, 255, 255, 0.03);
+                border-left: 2px solid {cyan_color};
+                margin-bottom: 8px;
+                border-radius: 0px;
             }}
             QFrame:hover {{
-                border-color: {COLORS['border_light']};
+                background-color: rgba(255, 255, 255, 0.08);
             }}
         """)
         
-        layout = QVBoxLayout(self)
-        layout.setSpacing(12)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(15, 10, 15, 10)
+        layout.setSpacing(15)
         
-        # Header row
-        header_layout = QHBoxLayout()
-        header_layout.setSpacing(10)
-        
-        name_label = QLabel(self.name)
-        name_label.setStyleSheet(f"""
-            font-size: 18px;
-            font-weight: bold;
-            color: {COLORS['text_primary']};
-            background: transparent;
-        """)
-        header_layout.addWidget(name_label)
-        
-        counts_label = QLabel(f"{self.face_count} üz | {self.body_count} bədən")
-        counts_label.setStyleSheet(f"""
-            font-size: 13px;
-            color: {COLORS['success']};
-            background: transparent;
-            padding-left: 10px;
-        """)
-        header_layout.addWidget(counts_label)
-        
-        header_layout.addStretch()
-        
-        # Action buttons
-        add_face_btn = QPushButton("+ Üz Əlavə Et")
-        add_face_btn.setFixedHeight(30)
-        add_face_btn.setStyleSheet(self._get_outline_btn_style())
-        add_face_btn.clicked.connect(lambda: self.add_face_clicked.emit(self.user_id, self.name))
-        header_layout.addWidget(add_face_btn)
-        
-        add_body_btn = QPushButton("🧍 Bədən Əlavə Et")
-        add_body_btn.setFixedHeight(30)
-        add_body_btn.setStyleSheet(self._get_outline_btn_style())
-        add_body_btn.clicked.connect(lambda: self.add_body_clicked.emit(self.user_id, self.name))
-        header_layout.addWidget(add_body_btn)
-        
-        edit_bodies_btn = QPushButton(f"✏ Bədənləri Düzəlt ({self.body_count})")
-        edit_bodies_btn.setFixedHeight(30)
-        edit_bodies_btn.setStyleSheet(self._get_success_btn_style())
-        edit_bodies_btn.clicked.connect(lambda: self.edit_bodies_clicked.emit(self.user_id, self.name))
-        header_layout.addWidget(edit_bodies_btn)
-        
-        edit_faces_btn = QPushButton("✏ Üzləri Düzəlt")
-        edit_faces_btn.setFixedHeight(30)
-        edit_faces_btn.setStyleSheet(self._get_primary_btn_style())
-        edit_faces_btn.clicked.connect(lambda: self.edit_faces_clicked.emit(self.user_id, self.name))
-        header_layout.addWidget(edit_faces_btn)
-        
-        delete_btn = QPushButton("🗑 Şəxsi Sil")
-        delete_btn.setFixedHeight(30)
-        delete_btn.setStyleSheet(self._get_danger_btn_style())
-        delete_btn.clicked.connect(lambda: self.delete_clicked.emit(self.user_id, self.name))
-        header_layout.addWidget(delete_btn)
-        
-        layout.addLayout(header_layout)
-        
-        # Face thumbnails row
-        thumbs_layout = QHBoxLayout()
-        thumbs_layout.setSpacing(3)
-        thumbs_layout.setContentsMargins(0, 5, 0, 0)
-        
-        for img_path in self.face_images[:5]:
-            thumb = self._create_thumbnail(img_path)
+        # 1. Avatar (First Image)
+        if self.face_images:
+            thumb = self._create_thumbnail(self.face_images[0], size=48)
             if thumb:
-                thumbs_layout.addWidget(thumb)
+                layout.addWidget(thumb)
+            else:
+                layout.addWidget(self._create_placeholder_avatar())
+        else:
+            layout.addWidget(self._create_placeholder_avatar())
+            
+        # 2. Info Block
+        info_layout = QVBoxLayout()
+        info_layout.setSpacing(4)
         
-        thumbs_layout.addStretch()
-        layout.addLayout(thumbs_layout)
-    
-    def _get_outline_btn_style(self):
-        return f"""
+        name_lbl = QLabel(self.name)
+        text_color = COLORS.get('text_main', '#E0E0E0')
+        muted_color = COLORS.get('text_muted', '#6b7280')
+        
+        name_lbl.setStyleSheet(f"color: {text_color}; font-weight: bold; font-size: 16px; border: none; background: transparent;")
+        info_layout.addWidget(name_lbl)
+        
+        stats_text = f"FACES: {self.face_count} | BODIES: {self.body_count}"
+        stats_lbl = QLabel(stats_text)
+        stats_lbl.setStyleSheet(f"color: {muted_color}; font-size: 11px; font-family: 'Consolas'; border: none; background: transparent;")
+        info_layout.addWidget(stats_lbl)
+        
+        layout.addLayout(info_layout)
+        
+        layout.addStretch()
+        
+        # 3. Action Buttons (Right Aligned)
+        
+        # Add Face (Camera Icon)
+        self._add_btn(layout, "📷", tr("enrollment.btn_capture"), 
+                      lambda: self.add_face_clicked.emit(self.user_id, self.name), text_color)
+        
+        # Add Body (Person Icon)
+        self._add_btn(layout, "🧍", "Add Body Data", 
+                      lambda: self.add_body_clicked.emit(self.user_id, self.name), text_color)
+        
+        # Edit Faces (Pencil Icon)
+        self._add_btn(layout, "✏️", "Edit Faces", 
+                      lambda: self.edit_faces_clicked.emit(self.user_id, self.name), cyan_color)
+
+        if self.body_count > 0:
+            self._add_btn(layout, "🧬", "Edit Body Data", 
+                          lambda: self.edit_bodies_clicked.emit(self.user_id, self.name), COLORS.get('acid_green', '#CCFF00'))
+        
+        # Delete (Trash Icon)
+        self._add_btn(layout, "🗑️", tr("user_management.delete"), 
+                      lambda: self.delete_clicked.emit(self.user_id, self.name), COLORS.get('alert_red', '#FF3300'))
+
+    def _add_btn(self, layout, icon, tooltip, callback, color):
+        btn = QPushButton(icon)
+        btn.setToolTip(tooltip)
+        btn.setFixedSize(36, 36)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.clicked.connect(callback)
+        
+        border_col = "rgba(255, 255, 255, 0.1)"
+        
+        btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: transparent;
-                border: 1px solid {COLORS['border']};
-                border-radius: 5px;
-                padding: 5px 12px;
-                color: {COLORS['text_secondary']};
-                font-size: 12px;
+                background-color: rgba(0, 0, 0, 0.3);
+                border: 1px solid {border_col};
+                border-radius: 4px;
+                color: {color};
+                font-size: 16px;
             }}
             QPushButton:hover {{
-                border-color: {COLORS['text_primary']};
-                color: {COLORS['text_primary']};
+                background-color: rgba(255, 255, 255, 0.1);
+                border-color: {color};
             }}
-        """
-    
-    def _get_primary_btn_style(self):
-        return f"""
-            QPushButton {{
-                background-color: {COLORS['primary']};
-                border: none;
-                border-radius: 5px;
-                padding: 5px 12px;
-                color: white;
-                font-size: 12px;
-                font-weight: 500;
-            }}
-            QPushButton:hover {{
-                background-color: {COLORS['primary_hover']};
-            }}
-        """
-    
-    def _get_success_btn_style(self):
-        return f"""
-            QPushButton {{
-                background-color: {COLORS['success']};
-                border: none;
-                border-radius: 5px;
-                padding: 5px 12px;
-                color: white;
-                font-size: 12px;
-                font-weight: 500;
-            }}
-            QPushButton:hover {{
-                background-color: #27ae60;
-            }}
-        """
-    
-    def _get_danger_btn_style(self):
-        return f"""
-            QPushButton {{
-                background-color: {COLORS['danger']};
-                border: none;
-                border-radius: 5px;
-                padding: 5px 12px;
-                color: white;
-                font-size: 12px;
-                font-weight: 500;
-            }}
-            QPushButton:hover {{
-                background-color: #c0392b;
-            }}
-        """
-    
-    def _create_thumbnail(self, image_path: str) -> Optional[ClickableImageLabel]:
+        """)
+        layout.addWidget(btn)
+        
+    def _create_placeholder_avatar(self):
+        lbl = QLabel("👤")
+        lbl.setFixedSize(48, 48)
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl.setStyleSheet(f"background: rgba(255,255,255,0.05); border-radius: 4px; font-size: 20px; color: {COLORS.get('text_muted', '#888')}; border: none;")
+        return lbl
+
+    def _create_thumbnail(self, image_path: str, size=48) -> Optional[ClickableImageLabel]:
         try:
             if not os.path.exists(image_path):
                 return None
@@ -333,13 +285,11 @@ class PersonCardWidget(QFrame):
                 return None
             
             h, w = img.shape[:2]
-            size = 80
             scale = size / max(h, w)
             new_w, new_h = int(w * scale), int(h * scale)
             resized = cv2.resize(img, (new_w, new_h))
             
             rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
-            
             h, w, ch = rgb.shape
             q_image = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888)
             pixmap = QPixmap.fromImage(q_image)
@@ -348,8 +298,8 @@ class PersonCardWidget(QFrame):
             label.setPixmap(pixmap)
             label.setFixedSize(size, size)
             label.setScaledContents(True)
-            label.setStyleSheet("border: 2px solid transparent; border-radius: 3px; background: transparent;")
-            label.setToolTip("Sağ klik - silmək üçün")
+            label.setStyleSheet("border: 1px solid rgba(255,255,255,0.2); border-radius: 2px; background: transparent;")
+            label.setToolTip("Right click to delete")
             label.image_deleted.connect(self._on_image_deleted)
             
             return label

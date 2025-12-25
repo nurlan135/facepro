@@ -14,7 +14,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 
 from src.utils.logger import get_logger
-from src.ui.styles import DARK_THEME, COLORS
+from src.ui.styles import COLORS, CYBER_THEME
+from src.utils.i18n import tr
 from .widgets import PersonCardWidget
 from .enrollment_dialog import FaceEnrollmentDialog
 from src.core.database.repositories.user_repository import UserRepository
@@ -35,71 +36,94 @@ class ManageFacesDialog(QDialog):
         self._load_persons()
     
     def _setup_ui(self):
-        self.setWindowTitle("👥 Şəxsləri İdarə Et")
+        self.setWindowTitle(tr("sidebar.manage_faces"))
         self.setMinimumSize(900, 600)
-        self.setStyleSheet(DARK_THEME)
+        self.setStyleSheet(CYBER_THEME)
         
         layout = QVBoxLayout(self)
-        layout.setSpacing(15)
+        layout.setSpacing(0)
+        layout.setContentsMargins(0, 0, 0, 0)
         
-        # Header
-        header_layout = QHBoxLayout()
+        # Header (Cyber Style)
+        header_widget = QWidget()
+        header_widget.setStyleSheet(f"background-color: {COLORS.get('bg_panel', '#0a0a0f')}; border-bottom: 1px solid {COLORS.get('border_tech', '#333')};")
+        header_layout = QHBoxLayout(header_widget)
+        header_layout.setContentsMargins(20, 15, 20, 15)
         
-        title = QLabel("👥 Şəxsləri İdarə Et")
-        title.setStyleSheet(f"font-size: 20px; font-weight: bold; color: {COLORS['text_primary']};")
+        title = QLabel(tr("sidebar.manage_faces"))
+        title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {COLORS.get('cyber_cyan', '#00FFFF')}; letter-spacing: 1px;")
         header_layout.addWidget(title)
         
         header_layout.addStretch()
         
-        add_btn = QPushButton("+ Yeni Şəxs Əlavə Et")
+        # Add Button (Neon)
+        add_btn = QPushButton(f"+ {tr('dashboard.cards.add_face')}")
+        add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         add_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLORS['success']};
+                background-color: {COLORS.get('acid_green', '#00FF00')};
+                color: black;
                 border: none;
-                border-radius: 6px;
-                padding: 10px 20px;
-                color: white;
+                border-radius: 2px;
+                padding: 8px 16px;
                 font-weight: bold;
+                font-family: 'Rajdhani', sans-serif;
             }}
-            QPushButton:hover {{ background-color: #27ae60; }}
+            QPushButton:hover {{
+                background-color: #B3FF00;
+            }}
         """)
         add_btn.clicked.connect(self._add_person)
         header_layout.addWidget(add_btn)
         
-        layout.addLayout(header_layout)
+        layout.addWidget(header_widget)
         
-        # Scroll area
+        # Scroll Area
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet(f"QScrollArea {{ border: none; background-color: {COLORS['bg_dark']}; }}")
+        scroll.setStyleSheet("background: transparent; border: none;")
         
         self.cards_container = QWidget()
+        self.cards_container.setStyleSheet("background: transparent;")
         self.cards_layout = QVBoxLayout(self.cards_container)
         self.cards_layout.setSpacing(10)
+        self.cards_layout.setContentsMargins(20, 20, 20, 20)
         self.cards_layout.addStretch()
         
         scroll.setWidget(self.cards_container)
         layout.addWidget(scroll)
         
         # Footer
-        footer_layout = QHBoxLayout()
+        footer = QWidget()
+        footer.setStyleSheet(f"background-color: {COLORS.get('bg_panel', '#0a0a0f')}; border-top: 1px solid {COLORS.get('border_tech', '#333')};")
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(20, 10, 20, 10)
+        
+        self.count_lbl = QLabel("Total: 0")
+        self.count_lbl.setStyleSheet(f"color: {COLORS.get('text_muted', '#888')}; font-family: 'Consolas';")
+        footer_layout.addWidget(self.count_lbl)
+        
         footer_layout.addStretch()
         
-        close_btn = QPushButton("Bağla")
+        close_btn = QPushButton(tr("user_management.close"))
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         close_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLORS['bg_light']};
-                border: 1px solid {COLORS['border']};
-                border-radius: 6px;
-                padding: 10px 30px;
-                color: {COLORS['text_primary']};
+                background: transparent;
+                border: 1px solid {COLORS.get('border_tech', '#333')};
+                color: {COLORS.get('text_main', '#FFF')};
+                padding: 6px 16px;
+                border-radius: 2px;
             }}
-            QPushButton:hover {{ background-color: {COLORS['bg_medium']}; }}
+            QPushButton:hover {{
+                border-color: {COLORS.get('cyber_cyan', '#00FFFF')};
+                color: {COLORS.get('cyber_cyan', '#00FFFF')};
+            }}
         """)
         close_btn.clicked.connect(self.accept)
         footer_layout.addWidget(close_btn)
         
-        layout.addLayout(footer_layout)
+        layout.addWidget(footer)
     
     def _load_persons(self):
         # Clear existing cards (except the stretch at the end)
@@ -111,6 +135,8 @@ class ManageFacesDialog(QDialog):
         try:
             # Fetch from repo
             rows = self._user_repo.get_users_with_stats()
+            if hasattr(self, 'count_lbl'):
+                self.count_lbl.setText(f"TOTAL: {len(rows)}")
             
             for user_id, name, face_count, body_count in rows:
                 face_images = self._get_face_images(name)
@@ -212,27 +238,29 @@ class EditEncodingsDialog(QDialog):
         title = "Üzləri Düzəlt" if self.encoding_type == "face" else "Bədənləri Düzəlt"
         self.setWindowTitle(f"{title} - {self.name}")
         self.setMinimumSize(500, 400)
-        self.setStyleSheet(DARK_THEME)
+        self.setStyleSheet(CYBER_THEME)
         
         layout = QVBoxLayout(self)
         
         header = QLabel(f"{self.name} - {title}")
-        header.setStyleSheet(f"font-size: 16px; font-weight: bold; color: {COLORS['text_primary']};")
+        header.setStyleSheet(f"font-size: 16px; font-weight: bold; color: {COLORS.get('text_main', '#FFF')};")
         layout.addWidget(header)
         
         self.encodings_list = QListWidget()
         self.encodings_list.setStyleSheet(f"""
             QListWidget {{
-                background-color: {COLORS['bg_dark']};
-                border: 1px solid {COLORS['border']};
-                border-radius: 6px;
+                background-color: {COLORS.get('bg_panel', '#000')};
+                border: 1px solid {COLORS.get('border_tech', '#333')};
+                border-radius: 4px;
             }}
             QListWidget::item {{
                 padding: 10px;
-                border-bottom: 1px solid {COLORS['border']};
+                border-bottom: 1px solid {COLORS.get('grid_line', '#333')};
+                color: {COLORS.get('text_main', '#FFF')};
             }}
             QListWidget::item:selected {{
-                background-color: {COLORS['primary']};
+                background-color: rgba(0, 240, 255, 0.2);
+                border-left: 2px solid {COLORS.get('cyber_cyan', '#0FF')};
             }}
         """)
         layout.addWidget(self.encodings_list)
@@ -240,11 +268,12 @@ class EditEncodingsDialog(QDialog):
         btn_layout = QHBoxLayout()
         
         delete_btn = QPushButton("Seçilmişi Sil")
+        delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         delete_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLORS['danger']};
+                background-color: {COLORS.get('alert_red', '#F00')};
                 border: none;
-                border-radius: 6px;
+                border-radius: 4px;
                 padding: 8px 16px;
                 color: white;
             }}
@@ -256,6 +285,20 @@ class EditEncodingsDialog(QDialog):
         btn_layout.addStretch()
         
         close_btn = QPushButton("Bağla")
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                border: 1px solid {COLORS.get('border_tech', '#333')};
+                color: {COLORS.get('text_main', '#FFF')};
+                padding: 8px 16px;
+                border-radius: 4px;
+            }}
+            QPushButton:hover {{
+                border-color: {COLORS.get('cyber_cyan', '#0FF')};
+                color: {COLORS.get('cyber_cyan', '#0FF')};
+            }}
+        """)
         close_btn.clicked.connect(self.accept)
         btn_layout.addWidget(close_btn)
         

@@ -126,6 +126,7 @@
         "audit_user": "İstifadəçi",
         "audit_action": "Hərəkət",
         "audit_details": "Detallar",
+        "btn_apply": "Tətbiq Et",
         "btn_save": "Yadda Saxla",
         "btn_cancel": "Ləğv Et",
         "language": "Dil",
@@ -319,6 +320,18 @@
         "success_msg": "'{name}' üçün üz məlumatları yadda saxlanıldı!",
         "capture_help": "SPACE - Çək, ESC - Ləğv et"
     },
+    "audit_actions": {
+        "login": "Giriş",
+        "logout": "Çıxış",
+        "face_enrolled": "Üz Əlavə Edildi",
+        "person_deleted": "Şəxs Silindi",
+        "encoding_deleted": "Vektor Silindi",
+        "user_created": "İstifadəçi Yaradıldı",
+        "user_deleted": "İstifadəçi Silindi",
+        "database_restored": "Baza Bərpa Edildi",
+        "backup_created": "Nüsxə Yaradıldı",
+        "settings_change": "Ayarlar Dəyişdirildi"
+    },
     "common": {
         "logout_confirm_title": "Çıxış",
         "logout_confirm_msg": "Çıxış etmək istədiyinizə əminsiniz?",
@@ -330,12 +343,26 @@
         "events_export": "İxrac",
         "msg_error": "Səhv",
         "msg_success": "Uğurlu",
-        "msg_language_changed": "Dil uğurla dəyişdirildi!"
+        "msg_language_changed": "Dil uğurla dəyişdirildi!",
+        "btn_yes": "Bəli",
+        "btn_no": "Xeyr",
+        "exit_confirm_msg": "Sistem işləyir. Çıxmaq istəyirsiniz?"
     },
     "errors": {
         "camera_connection": "Kameraya qoşulmaq mümkün olmadı",
         "database_error": "Verilənlər bazası xətası baş verdi",
         "disk_full": "Disk yeri azalır",
         "model_load_failed": "AI model yüklənə bilmədi"
+    },
+    "cyber": {
+        "init_system": "SİSTEMİ BAŞLAT",
+        "system_offline": "SİSTEM SÖNÜLÜDÜR",
+        "live_log": "CANLI LOG // REAL ZAMANLI AXIN",
+        "vector_search": "VEKTOR AXTARIŞ PROTOKOLU",
+        "press_init": "BAŞLAMAQ ÜÇÜN [INIT_SYSTEM] SIXIN",
+        "signal_lost": "SİQNAL İTİRİLDİ",
+        "linking": "QOŞULUR...",
+        "link_failure": "BAĞLANTI XƏTASI",
+        "waiting": "AXIN GÖZLƏNİLİR..."
     }
 }

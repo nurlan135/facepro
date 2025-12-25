@@ -26,240 +26,246 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from src.utils.auth_manager import get_auth_manager
 from src.utils.i18n import tr
-from src.ui.styles import COLORS
+from src.ui.styles import COLORS, CYBER_THEME
 
 
-# User Management Dialog Style - Dark theme consistent with app
+# User Management Dialog Style - Cyber Brutalist Theme
 USER_MANAGEMENT_STYLE = f"""
 QDialog {{
-    background-color: {COLORS['bg_dark']};
+    background-color: {COLORS.get('bg_panel', '#050505')};
+    color: {COLORS.get('text_main', '#e0e0e0')};
+    border: 1px solid {COLORS.get('border_tech', '#333')};
 }}
 
 QLabel {{
-    color: {COLORS['text_primary']};
+    color: {COLORS.get('text_main', '#e0e0e0')};
     font-family: 'Segoe UI', sans-serif;
-    background-color: transparent;
 }}
 
 QLabel#Title {{
-    color: {COLORS['primary']};
+    color: {COLORS.get('cyber_cyan', '#00f0ff')};
+    font-family: 'Rajdhani', sans-serif;
     font-size: 24px;
     font-weight: bold;
+    letter-spacing: 1px;
+    text-transform: uppercase;
 }}
 
 QLabel#Subtitle {{
-    color: {COLORS['text_secondary']};
-    font-size: 14px;
+    color: {COLORS.get('text_muted', '#bbb')};
+    font-size: 13px;
+    font-style: italic;
 }}
 
 QLabel#FieldLabel {{
-    color: {COLORS['text_secondary']};
-    font-size: 13px;
-    font-weight: 600;
+    color: {COLORS.get('text_muted', '#aaa')};
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }}
 
 QLabel#ErrorLabel {{
-    color: {COLORS['danger']};
+    color: {COLORS.get('alert_red', '#ff003c')};
     font-size: 13px;
-    font-weight: 500;
     padding: 8px;
-    background-color: rgba(231, 76, 60, 0.1);
-    border-radius: 6px;
+    background-color: rgba(255, 0, 60, 0.1);
+    border-left: 2px solid {COLORS.get('alert_red', '#ff003c')};
 }}
 
 QLabel#SuccessLabel {{
-    color: {COLORS['success']};
+    color: {COLORS.get('acid_green', '#00ff00')};
     font-size: 13px;
-    font-weight: 500;
     padding: 8px;
-    background-color: rgba(46, 204, 113, 0.1);
-    border-radius: 6px;
+    background-color: rgba(0, 255, 0, 0.1);
+    border-left: 2px solid {COLORS.get('acid_green', '#00ff00')};
 }}
 
 QLineEdit {{
-    background-color: {COLORS['bg_light']};
-    color: {COLORS['text_primary']};
-    border: 1px solid {COLORS['border']};
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-family: 'Segoe UI', sans-serif;
+    background-color: rgba(255, 255, 255, 0.05);
+    color: {COLORS.get('text_main', '#fff')};
+    border: 1px solid {COLORS.get('border_tech', '#333')};
+    border-radius: 2px;
+    padding: 8px 12px;
+    font-family: 'Consolas', monospace;
     font-size: 14px;
-    selection-background-color: {COLORS['primary']};
+    selection-background-color: {COLORS.get('cyber_cyan', '#00f0ff')};
+    selection-color: black;
 }}
 
 QLineEdit:focus {{
-    border: 2px solid {COLORS['primary']};
-    background-color: {COLORS['bg_light']};
+    border: 1px solid {COLORS.get('cyber_cyan', '#00f0ff')};
+    background-color: rgba(0, 240, 255, 0.05);
 }}
 
 QLineEdit:disabled {{
-    background-color: {COLORS['bg_medium']};
-    color: {COLORS['text_muted']};
+    background-color: rgba(255, 255, 255, 0.02);
+    color: {COLORS.get('text_muted', '#666')};
+    border: 1px dashed {COLORS.get('border_tech', '#333')};
 }}
 
 QComboBox {{
-    background-color: {COLORS['bg_light']};
-    color: {COLORS['text_primary']};
-    border: 1px solid {COLORS['border']};
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-family: 'Segoe UI', sans-serif;
-    font-size: 14px;
+    background-color: rgba(255, 255, 255, 0.05);
+    color: {COLORS.get('text_main', '#fff')};
+    border: 1px solid {COLORS.get('border_tech', '#333')};
+    border-radius: 2px;
+    padding: 8px 12px;
+    font-family: 'Consolas', monospace;
     min-width: 120px;
 }}
 
 QComboBox:focus {{
-    border: 2px solid {COLORS['primary']};
+    border: 1px solid {COLORS.get('cyber_cyan', '#00f0ff')};
 }}
 
 QComboBox::drop-down {{
     border: none;
-    width: 30px;
-}}
-
-QComboBox::down-arrow {{
-    image: none;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-top: 6px solid {COLORS['text_secondary']};
-    margin-right: 10px;
+    width: 20px;
 }}
 
 QComboBox QAbstractItemView {{
-    background-color: {COLORS['bg_light']};
-    color: {COLORS['text_primary']};
-    border: 1px solid {COLORS['border']};
-    selection-background-color: {COLORS['primary']};
-    selection-color: white;
-    padding: 4px;
+    background-color: {COLORS.get('bg_panel', '#050505')};
+    color: {COLORS.get('text_main', '#fff')};
+    border: 1px solid {COLORS.get('cyber_cyan', '#00f0ff')};
+    selection-background-color: {COLORS.get('cyber_cyan', '#00f0ff')};
+    selection-color: black;
 }}
 
+/* Buttons */
 QPushButton {{
-    border-radius: 8px;
-    padding: 10px 20px;
-    font-family: 'Segoe UI', sans-serif;
+    border-radius: 2px;
+    padding: 8px 20px;
+    font-family: 'Rajdhani', sans-serif;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }}
 
 QPushButton#AddBtn {{
-    background-color: {COLORS['success']};
-    color: white;
+    background-color: {COLORS.get('acid_green', '#00ff00')};
+    color: black;
     border: none;
 }}
 
 QPushButton#AddBtn:hover {{
-    background-color: #27ae60;
+    background-color: #b3ff00;
+    color: black;
 }}
 
 QPushButton#EditBtn {{
-    background-color: {COLORS['primary']};
-    color: white;
-    border: none;
+    background-color: transparent;
+    color: {COLORS.get('cyber_cyan', '#00f0ff')};
+    border: 1px solid {COLORS.get('cyber_cyan', '#00f0ff')};
 }}
 
 QPushButton#EditBtn:hover {{
-    background-color: {COLORS['primary_hover']};
+    background-color: rgba(0, 240, 255, 0.1);
+    color: {COLORS.get('cyber_cyan', '#00f0ff')};
 }}
 
 QPushButton#DeleteBtn {{
-    background-color: {COLORS['danger']};
-    color: white;
-    border: none;
+    background-color: transparent;
+    color: {COLORS.get('alert_red', '#ff003c')};
+    border: 1px solid {COLORS.get('alert_red', '#ff003c')};
 }}
 
 QPushButton#DeleteBtn:hover {{
-    background-color: #c0392b;
+    background-color: rgba(255, 0, 60, 0.1);
+    color: {COLORS.get('alert_red', '#ff003c')};
 }}
 
-QPushButton#CloseBtn {{
+QPushButton#CloseBtn, QPushButton#CancelBtn {{
     background-color: transparent;
-    color: {COLORS['text_secondary']};
-    border: 1px solid {COLORS['border']};
+    color: {COLORS.get('text_muted', '#888')};
+    border: 1px solid {COLORS.get('border_tech', '#444')};
 }}
 
-QPushButton#CloseBtn:hover {{
-    background-color: {COLORS['bg_light']};
-    color: {COLORS['text_primary']};
-    border-color: {COLORS['border_light']};
+QPushButton#CloseBtn:hover, QPushButton#CancelBtn:hover {{
+    border-color: {COLORS.get('text_main', '#fff')};
+    color: {COLORS.get('text_main', '#fff')};
 }}
 
 QPushButton#SaveBtn {{
-    background-color: {COLORS['primary']};
-    color: white;
+    background-color: {COLORS.get('cyber_cyan', '#00f0ff')};
+    color: black;
     border: none;
 }}
 
 QPushButton#SaveBtn:hover {{
-    background-color: {COLORS['primary_hover']};
-}}
-
-QPushButton#CancelBtn {{
-    background-color: transparent;
-    color: {COLORS['text_secondary']};
-    border: 1px solid {COLORS['border']};
-}}
-
-QPushButton#CancelBtn:hover {{
-    background-color: {COLORS['bg_light']};
-    color: {COLORS['text_primary']};
+    background-color: #00d0e0;
 }}
 
 QPushButton:disabled {{
-    background-color: {COLORS['border']};
-    color: {COLORS['text_muted']};
+    background-color: transparent;
+    color: #444;
+    border: 1px solid #333;
 }}
 
+/* Table Widget */
 QTableWidget {{
-    background-color: {COLORS['bg_light']};
-    color: {COLORS['text_primary']};
-    border: 1px solid {COLORS['border']};
-    border-radius: 8px;
-    gridline-color: {COLORS['border']};
-    font-family: 'Segoe UI', sans-serif;
+    background-color: transparent;
+    color: {COLORS.get('text_main', '#e0e0e0')};
+    border: 1px solid {COLORS.get('border_tech', '#333')};
+    border-radius: 0px;
+    gridline-color: {COLORS.get('grid_line', '#222')};
+    font-family: 'Consolas', monospace;
     font-size: 13px;
+    outline: none;
+}}
+
+QTableWidget::item:focus {{
+    outline: none;
+    border: none;
 }}
 
 QTableWidget::item {{
     padding: 8px;
-    border-bottom: 1px solid {COLORS['border']};
+    border-bottom: 1px solid {COLORS.get('grid_line', '#222')};
 }}
 
 QTableWidget::item:selected {{
-    background-color: {COLORS['primary']};
+    background-color: rgba(0, 240, 255, 0.2);
     color: white;
+    border: 1px solid {COLORS.get('cyber_cyan', '#00f0ff')};
 }}
 
 QTableWidget::item:hover {{
-    background-color: {COLORS['bg_medium']};
+    background-color: rgba(255, 255, 255, 0.05);
 }}
 
 QHeaderView::section {{
-    background-color: {COLORS['bg_medium']};
-    color: {COLORS['text_secondary']};
+    background-color: {COLORS.get('bg_panel', '#0a0a0a')};
+    color: {COLORS.get('cyber_cyan', '#00f0ff')};
     padding: 10px 8px;
     border: none;
-    border-bottom: 2px solid {COLORS['border']};
-    font-weight: 600;
+    border-bottom: 2px solid {COLORS.get('cyber_cyan', '#00f0ff')};
+    font-weight: bold;
     font-size: 12px;
     text-transform: uppercase;
+    font-family: 'Rajdhani', sans-serif;
+    letter-spacing: 1px;
 }}
 
+/* Divider */
 QFrame#Divider {{
-    background-color: {COLORS['border']};
-    max-height: 1px;
+    background-color: {COLORS.get('cyber_cyan', '#00f0ff')};
+    max-height: 2px;
 }}
 
 QMessageBox {{
-    background-color: {COLORS['bg_dark']};
+    background-color: {COLORS.get('bg_panel', '#050505')};
 }}
 
 QMessageBox QLabel {{
-    color: {COLORS['text_primary']};
+    color: {COLORS.get('text_main', '#fff')};
 }}
 
 QMessageBox QPushButton {{
-    min-width: 80px;
+    background: transparent;
+    border: 1px solid {COLORS.get('border_tech', '#555')};
+    color: #fff;
+    padding: 5px 15px;
 }}
 """
 
@@ -295,7 +301,7 @@ class AddUserDialog(QDialog):
         layout.setContentsMargins(30, 30, 30, 30)
         
         # Title
-        title = QLabel(tr("add_user_title"))
+        title = QLabel(tr("add_user_title").upper())
         title.setObjectName("Title")
         layout.addWidget(title)
         
@@ -364,13 +370,13 @@ class AddUserDialog(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(12)
         
-        cancel_btn = QPushButton(tr("user_btn_cancel"))
+        cancel_btn = QPushButton(tr("user_btn_cancel").upper())
         cancel_btn.setObjectName("CancelBtn")
         cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
         
-        self.save_btn = QPushButton(tr("user_btn_add"))
+        self.save_btn = QPushButton(tr("user_btn_add").upper())
         self.save_btn.setObjectName("SaveBtn")
         self.save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.save_btn.clicked.connect(self._add_user)
@@ -448,7 +454,7 @@ class EditUserDialog(QDialog):
         layout.setContentsMargins(30, 30, 30, 30)
         
         # Title
-        title = QLabel(f"{tr('edit_user_title')}: {self._username}")
+        title = QLabel(f"{tr('edit_user_title').upper()}: {self._username}")
         title.setObjectName("Title")
         layout.addWidget(title)
         
@@ -518,13 +524,13 @@ class EditUserDialog(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(12)
         
-        cancel_btn = QPushButton(tr("user_btn_cancel"))
+        cancel_btn = QPushButton(tr("user_btn_cancel").upper())
         cancel_btn.setObjectName("CancelBtn")
         cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
         
-        self.save_btn = QPushButton(tr("user_btn_save"))
+        self.save_btn = QPushButton(tr("user_btn_save").upper())
         self.save_btn.setObjectName("SaveBtn")
         self.save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.save_btn.clicked.connect(self._save_changes)
@@ -681,14 +687,14 @@ class UserManagementDialog(QDialog):
         btn_layout.setSpacing(12)
         
         # Add User button
-        self.add_btn = QPushButton(f"➕ {tr('user_mgmt_add')}")
+        self.add_btn = QPushButton(f"+ {tr('user_mgmt_add').upper()}")
         self.add_btn.setObjectName("AddBtn")
         self.add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.add_btn.clicked.connect(self._add_user)
         btn_layout.addWidget(self.add_btn)
         
         # Edit button
-        self.edit_btn = QPushButton(f"✏️ {tr('user_mgmt_edit')}")
+        self.edit_btn = QPushButton(tr('user_mgmt_edit').upper())
         self.edit_btn.setObjectName("EditBtn")
         self.edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.edit_btn.setEnabled(False)
@@ -696,7 +702,7 @@ class UserManagementDialog(QDialog):
         btn_layout.addWidget(self.edit_btn)
         
         # Delete button
-        self.delete_btn = QPushButton(f"🗑️ {tr('user_mgmt_delete')}")
+        self.delete_btn = QPushButton(tr("user_mgmt_delete").upper())
         self.delete_btn.setObjectName("DeleteBtn")
         self.delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.delete_btn.setEnabled(False)
@@ -713,7 +719,7 @@ class UserManagementDialog(QDialog):
         footer_layout = QHBoxLayout()
         footer_layout.addStretch()
         
-        close_btn = QPushButton(tr("user_mgmt_close"))
+        close_btn = QPushButton(tr("user_mgmt_close").upper())
         close_btn.setObjectName("CloseBtn")
         close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         close_btn.clicked.connect(self.accept)

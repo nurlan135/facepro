@@ -1,377 +1,243 @@
 """
 FacePro Styles Module
-PyQt6 üçün Dark Theme və UI styles.
+CYBER-BRUTALIST EDITION
+High-Fidelity Security Dashboard Styles (Ported from Tailwind CSS concept)
 """
 
-# Dark Theme Color Palette
-# Dark Theme Color Palette
+# Cyber-Brutalist Color Palette (Based on HTML Concept)
 COLORS = {
-    # Premium Dark Theme Colors
-    'bg_dark': '#121212',       # Main Background (Deepest Black)
-    'bg_medium': '#1a1c23',     # Sidebar / Secondary Background
-    'bg_light': '#252731',      # Card / Element Background
-    'bg_card': '#252731',       # Card Background
-    
-    # Surface Colors (aliases for compatibility)
-    'surface': '#252731',       # Same as bg_light
-    'surface_light': '#2c303b', # Slightly lighter surface
-    
-    # Text Colors
-    'text_primary': '#FFFFFF',  # White
-    'text_secondary': '#A0AEC0', # Soft Gray
-    'text_muted': '#718096',    # Muted Gray
+    # Base
+    'bg_void': '#020202',        # Deepest Black
+    'bg_panel': '#0a0a0f',       # Panel Background
+    'bg_overlay': 'rgba(10, 10, 15, 0.85)',
     
     # Accents
-    'primary': '#3B82F6',       # Blue (General Primary)
-    'primary_hover': '#2563EB',
+    'cyber_cyan': '#00F0FF',     # Main UI Elements
+    'acid_green': '#CCFF00',     # Success / Safe / Admin
+    'alert_red': '#FF3300',      # Danger / Intrusion / Unknown
     
-    'success': '#2ecc71',       # Green (Active/Success) - Like image button
-    'danger': '#e74c3c',        # Red (Exit/Error) - Like image button
-    'warning': '#f1c40f',       # Yellow
+    # Text
+    'text_main': '#E0E0E0',
+    'text_muted': '#6b7280',     # slate-500
     
-    'border': '#2d3748',        # Subtle border
-    'border_light': '#4a5568',
+    # Legacy / Compatibility mappings
+    'bg_dark': '#0a0a0f',
+    'bg_light': '#1a1a1f',
+    'bg_medium': '#121215',
+    'text_primary': '#E0E0E0',
+    'text_secondary': '#6b7280',
+    'primary': '#00F0FF',
+    'primary_hover': '#00C0CC',
+    'success': '#CCFF00',
+    'danger': '#FF3300',
+    'warning': '#FFCC00',
+    'border': 'rgba(0, 240, 255, 0.3)',
+    'online': '#CCFF00',
+    'offline': '#6b7280',
+    'unknown': '#FF3300',
+    'surface': '#0a0a0f',
+    'surface_light': '#1a1a1f',
     
-    # Status Colors
-    'online': '#2ecc71',
-    'offline': '#e74c3c',
+    # Missing Legacy Keys (Fix for KeyErrors)
+    'border_light': 'rgba(255, 255, 255, 0.1)',
+    'bg_card': '#0a0a0f',
+    'input_bg': '#121215',
+    'input_border': 'rgba(0, 240, 255, 0.3)',
     
-    # Missing keys added
-    'secondary': '#64748B',     # Slate Gray
-    'unknown': '#7f8c8d',       # Concrete Gray
+    # Tech Elements
+    'grid_line': 'rgba(0, 240, 255, 0.1)',
+    'border_tech': 'rgba(0, 240, 255, 0.3)',
 }
 
+# Key Fonts to fallback to if custom font isn't available
+# Ideally: Rajdhani -> Segoe UI, JetBrains Mono -> Consolas
+FONT_HEADER = "Rajdhani, 'Segoe UI', sans-serif"
+FONT_MONO = "'JetBrains Mono', Consolas, 'Courier New', monospace"
 
-# Main Application StyleSheet
-DARK_THEME = f"""
+
+# Main Application StyleSheet (QSS)
+CYBER_THEME = f"""
 /* ===== Global Styles ===== */
 QWidget {{
-    background-color: {COLORS['bg_dark']};
-    color: {COLORS['text_primary']};
-    font-family: 'Segoe UI', 'Inter', sans-serif;
+    background-color: {COLORS['bg_void']};
+    color: {COLORS['text_main']};
+    font-family: {FONT_HEADER};
     font-size: 14px;
 }}
 
 QMainWindow {{
-    background-color: {COLORS['bg_dark']};
+    background-color: {COLORS['bg_void']};
+}}
+
+/* ===== Header ===== */
+QFrame[class="header"] {{
+    background-color: {COLORS['bg_panel']};
+    border-bottom: 1px solid {COLORS['border_tech']};
+}}
+
+QLabel[class="brand_title"] {{
+    font-family: {FONT_HEADER};
+    font-size: 24px;
+    font-weight: bold;
+    color: white;
+    letter-spacing: 2px;
+}}
+
+QLabel[class="brand_subtitle"] {{
+    font-family: {FONT_MONO};
+    font-size: 10px;
+    color: {COLORS['text_muted']};
+    letter-spacing: 1px;
 }}
 
 /* ===== Sidebar ===== */
 QWidget[class="sidebar"] {{
-    background-color: {COLORS['bg_medium']};
-    border-right: 1px solid {COLORS['border']};
+    background-color: {COLORS['bg_panel']};
+    border-right: 1px solid {COLORS['border_tech']};
 }}
 
-QLabel[class="sidebar_title"] {{
-    font-size: 20px;
-    font-weight: bold;
-    color: {COLORS['primary']};
-    padding: 20px 10px;
-}}
-
-QPushButton[class="sidebar_btn"] {{
+QPushButton[class="nav_btn"] {{
     background-color: transparent;
-    color: {COLORS['text_secondary']};
-    text-align: left;
-    padding: 12px 20px;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-}}
-
-QPushButton[class="sidebar_btn"]:hover {{
-    background-color: {COLORS['bg_light']};
-    color: {COLORS['text_primary']};
-}}
-
-QPushButton[class="sidebar_btn_active"] {{
-    background-color: {COLORS['bg_light']};
-    color: {COLORS['primary']};
-    border-left: 3px solid {COLORS['primary']};
-    font-weight: bold;
-}}
-
-/* ===== Sidebar Profile Card ===== */
-QFrame[class="profile_card"] {{
-    background-color: transparent;
-    border-radius: 10px;
-    padding: 10px;
-}}
-
-/* ===== Main Dashboard Styles ===== */
-QLabel[class="welcome_text"] {{
-    font-size: 24px;
-    font-weight: bold;
-    color: {COLORS['text_primary']};
-}}
-
-QLabel[class="tagline"] {{
-    font-size: 14px;
-    color: {COLORS['text_secondary']};
-}}
-
-/* ===== Action Cards ===== */
-QFrame[class="action_card"] {{
-    background-color: {COLORS['bg_light']};
-    border-radius: 12px;
-    border: 1px solid {COLORS['border']};
-}}
-
-QFrame[class="action_card"]:hover {{
-    border: 1px solid {COLORS['primary']};
-    background-color: #2c303b;
-}}
-
-/* ===== Activity Feed ===== */
-QListWidget[class="activity_feed"] {{
-    background-color: transparent;
-    border: none;
-    outline: none;
-}}
-
-QListWidget[class="activity_feed"]::item {{
-    background-color: rgba(255, 255, 255, 0.03);
-    margin-bottom: 10px;
-    border-radius: 10px;
-    padding: 5px; /* Inner padding handled by widget */
-    border: 1px solid rgba(255, 255, 255, 0.05);
-}}
-
-QListWidget[class="activity_feed"]::item:hover {{
-    background-color: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(59, 130, 246, 0.5);
-}}
-
-/* Activity Item Components */
-QFrame[class="activity_icon_box_success"] {{
-    background-color: rgba(46, 204, 113, 0.1);
-    border: 1px solid #2ecc71;
-    border-radius: 8px;
-}}
-QFrame[class="activity_icon_box_success"] QLabel {{
-    color: #2ecc71;
-    font-weight: bold;
-    font-size: 18px;
-}}
-
-QFrame[class="activity_icon_box_warning"] {{
-    background-color: rgba(241, 196, 15, 0.1);
-    border: 1px solid #f1c40f;
-    border-radius: 8px;
-}}
-QFrame[class="activity_icon_box_warning"] QLabel {{
-    color: #f1c40f;
-    font-weight: bold;
-    font-size: 18px;
-}}
-
-QLabel[class="activity_name"] {{
-    font-size: 15px;
-    font-weight: bold;
-    color: #FFFFFF;
-}}
-
-QLabel[class="activity_detail"] {{
-    font-size: 12px;
-    color: #A0AEC0;
-}}
-
-QLabel[class="activity_time"] {{
-    font-size: 12px;
-    color: #718096;
-    font-family: 'Consolas', monospace;
-}}
-
-/* ===== Sidebar Section Titles And Stats ===== */
-QLabel[class="sidebar_section_title"] {{
-    font-size: 12px;
-    font-weight: bold;
-    color: #4B5563; /* Muted darker gray */
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    padding-left: 5px;
-}}
-
-QLabel[class="stat_label"] {{
-    color: #A0AEC0;
-    font-size: 13px;
-    padding-left: 10px;
-}}
-
-/* ===== Standard Elements ===== */
-QLabel {{ background-color: transparent; }}
-
-QPushButton {{
-    background-color: {COLORS['primary']};
-    color: {COLORS['text_primary']};
-    border: none;
-    border-radius: 6px;
-    padding: 8px 16px;
-    font-weight: 500;
-}}
-
-QPushButton:hover {{ background-color: {COLORS['primary_hover']}; }}
-
-QPushButton[class="logout_btn"] {{
-    background-color: {COLORS['danger']};
-    color: white;
-    font-weight: bold;
-}}
-QPushButton[class="logout_btn"]:hover {{ background-color: #c0392b; }}
-
-QPushButton[class="status_btn_active"] {{
-    background-color: {COLORS['success']};
-    border-radius: 12px;
-    padding: 4px 12px;
-    font-size: 12px;
-    color: white;
-}}
-
-/* ===== Tab Bar (Custom Pills) ===== */
-QTabWidget::pane {{ border: none; }}
-
-QTabBar::tab {{
-    background-color: transparent;
-    color: {COLORS['text_secondary']};
-    padding: 8px 20px;
-    margin-right: 5px;
-    border-radius: 16px; 
-    font-weight: bold;
-}}
-
-QTabBar::tab:selected {{
-    background-color: {COLORS['primary']};
-    color: white;
-}}
-
-QTabBar::tab:hover {{
-    color: white;
-    background-color: {COLORS['bg_light']};
-}}
-
-/* ===== Filter Buttons ===== */
-QPushButton[class="filter_btn"] {{
-    background-color: {COLORS['bg_light']};
-    color: {COLORS['text_secondary']};
-    border: 1px solid {COLORS['border']};
-    border-radius: 6px;
-    padding: 8px 16px;
-    font-size: 12px;
-}}
-
-QPushButton[class="filter_btn"]:hover {{
-    background-color: {COLORS['bg_medium']};
-    color: {COLORS['text_primary']};
-}}
-
-QPushButton[class="filter_btn_active"] {{
-    background-color: {COLORS['primary']};
-    color: white;
-    border: none;
-    border-radius: 6px;
-    padding: 8px 16px;
-    font-size: 12px;
-}}
-
-QPushButton[class="filter_btn_active"]:hover {{
-    background-color: {COLORS['primary_hover']};
-}}
-
-/* ===== Input Fields ===== */
-QLineEdit, QComboBox {{
-    background-color: {COLORS['bg_light']};
-    color: {COLORS['text_primary']};
-    border: 1px solid {COLORS['border']};
+    color: {COLORS['text_muted']};
+    border: 1px solid transparent;
     border-radius: 4px;
-    padding: 6px;
+    padding: 10px;
+    qproperty-iconSize: 24px 24px;
 }}
 
-QLineEdit:focus {{
-    border: 1px solid {COLORS['primary']};
+QPushButton[class="nav_btn"]:hover {{
+    background-color: rgba(0, 240, 255, 0.1);
+    color: {COLORS['cyber_cyan']};
+    border: 1px solid {COLORS['cyber_cyan']};
 }}
 
-/* ===== Tables (QTableWidget) ===== */
-QTableWidget {{
-    background-color: {COLORS['bg_medium']};
-    gridline-color: {COLORS['border']};
-    border: 1px solid {COLORS['border']};
-    color: {COLORS['text_primary']}; /* Ensure text is white */
+QPushButton[class="nav_btn_active"] {{
+    background-color: rgba(0, 240, 255, 0.15);
+    color: {COLORS['cyber_cyan']};
+    border-left: 2px solid {COLORS['cyber_cyan']};
 }}
 
-QTableWidget::item {{
-    padding: 5px;
-    color: {COLORS['text_primary']};
+/* ===== Content Area ===== */
+QWidget[class="content_area"] {{
+    background-color: {COLORS['bg_void']};
 }}
 
-QTableWidget::item:selected {{
-    background-color: {COLORS['primary']};
-    color: white;
+/* ===== Video Grid Cards ===== */
+QFrame[class="video_container"] {{
+    background-color: #000000;
+    border: 1px solid #1a1a1a;
+}}
+QFrame[class="video_container"]:hover {{
+    border: 1px solid {COLORS['cyber_cyan']};
 }}
 
-/* Alternating rows override to prevent white text on white bg */
-QTableWidget {{
-    alternate-background-color: {COLORS['bg_light']}; 
+/* ===== Event Panel (Right Side) ===== */
+QWidget[class="event_panel"] {{
+    background-color: {COLORS['bg_panel']};
+    border-left: 1px solid {COLORS['border_tech']};
 }}
 
-QHeaderView::section {{
-    background-color: {COLORS['bg_card']};
-    color: {COLORS['text_secondary']};
-    border: none;
-    padding: 8px;
+QLabel[class="panel_header"] {{
+    font-family: {FONT_MONO};
+    font-size: 14px;
     font-weight: bold;
-    border-bottom: 2px solid {COLORS['border']};
+    color: {COLORS['cyber_cyan']};
+    padding: 10px;
+    background-color: rgba(0, 240, 255, 0.05);
+    border-bottom: 1px solid {COLORS['border_tech']};
 }}
 
-QPushButton[class="camera_list_btn"] {{
-    text-align: left;
-    padding: 8px 15px;
-    background-color: {COLORS['surface']};
-    border: 1px solid {COLORS['border']};
-    border-radius: 5px;
+/* Event Cards */
+QFrame[class="event_card"] {{
+    background-color: rgba(255, 255, 255, 0.03);
+    border-left: 2px solid transparent;
+    margin-bottom: 8px;
+    padding: 2px;
 }}
 
-QPushButton[class="camera_list_btn"]:hover {{
-    border-color: {COLORS['primary']};
+QFrame[class="event_card"]:hover {{
+    background-color: rgba(255, 255, 255, 0.08);
 }}
 
-QPushButton[class="secondary"] {{
-    background-color: {COLORS['bg_light']};
-    color: {COLORS['text_secondary']};
-    border: 1px solid {COLORS['border']};
+/* Known Person Card */
+QFrame[class="event_card_known"] {{
+    border-left: 2px solid {COLORS['acid_green']};
 }}
 
-QPushButton[class="secondary"]:hover {{
-    background-color: {COLORS['border']};
-    color: white;
+/* Unknown/Intrusion Card */
+QFrame[class="event_card_alert"] {{
+    border-left: 2px solid {COLORS['alert_red']};
+    background-color: rgba(255, 51, 0, 0.05);
+}}
+
+QLabel[class="event_name_known"] {{
+    font-family: {FONT_HEADER};
+    font-weight: bold;
+    font-size: 14px;
+    color: {COLORS['acid_green']};
+}}
+
+QLabel[class="event_name_alert"] {{
+    font-family: {FONT_HEADER};
+    font-weight: bold;
+    font-size: 14px;
+    color: {COLORS['alert_red']};
+}}
+
+QLabel[class="event_meta"] {{
+    font-family: {FONT_MONO};
+    font-size: 10px;
+    color: {COLORS['text_muted']};
+}}
+
+
+/* ===== Scrollbars (Custom Tech Look) ===== */
+QScrollBar:vertical {{
+    border: none;
+    background: {COLORS['bg_void']};
+    width: 6px;
+    margin: 0px;
+}}
+QScrollBar::handle:vertical {{
+    background: {COLORS['border_tech']};
+    min-height: 20px;
+    border-radius: 0px;
+}}
+QScrollBar::handle:vertical:hover {{
+    background: {COLORS['cyber_cyan']};
+}}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+    height: 0px;
 }}
 """
 
+# Alias for backward compatibility
+DARK_THEME = CYBER_THEME
 
-# Video Widget Overlay Styles (for drawing)
+# Overlay Drawing Colors (OpenCV BGR)
 VIDEO_OVERLAY_STYLE = {
-    'font_family': 'Segoe UI',
-    'font_size': 12,
-    'font_color': (255, 255, 255),  # BGR
-    'bbox_thickness': 2,
-    'known_color': (0, 255, 0),     # Green (BGR)
-    'unknown_color': (0, 0, 255),   # Red (BGR)
-    'cat_color': (0, 165, 255),     # Orange (BGR)
-    'dog_color': (0, 255, 255),     # Yellow (BGR)
+    'font_face': 0, # FONT_HERSHEY_SIMPLEX
+    'font_scale': 0.5,
+    'thickness': 1,
+    'color_known': (0, 255, 204),    # Acid Green-ish (BGR: 204, 255, 0)
+    'color_unknown': (0, 51, 255),   # Red (BGR: 255, 51, 0)
+    'color_ui': (255, 240, 0),       # Cyan (BGR: 0, 240, 255)
 }
 
+def apply_theme(widget):
+    """Widget-ə Cyber-Brutalist theme tətbiq edir."""
+    widget.setStyleSheet(CYBER_THEME)
+
+def get_color_hex(name: str) -> str:
+    return COLORS.get(name, '#FFFFFF')
 
 def get_status_color(status: str) -> str:
-    """Status üçün rəng qaytarır."""
-    return {
-        'online': COLORS['online'],
-        'connected': COLORS['online'],
-        'offline': COLORS['offline'],
-        'disconnected': COLORS['offline'],
-        'warning': COLORS['warning'],
-        'error': COLORS['danger'],
-    }.get(status.lower(), COLORS['unknown'])
-
-
-def apply_theme(widget):
-    """Widget-ə dark theme tətbiq edir."""
-    widget.setStyleSheet(DARK_THEME)
+    """Status-a görə rəng kodunu qaytarır."""
+    name = status.lower()
+    if name in ['connected', 'online', 'active', 'secure']:
+        return COLORS['acid_green']
+    elif name in ['connecting', 'reconnecting', 'warning']:
+        return COLORS['warning']
+    elif name in ['failed', 'offline', 'error', 'intrusion']:
+        return COLORS['alert_red']
+    return COLORS['text_muted']

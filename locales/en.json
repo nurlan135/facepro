@@ -126,6 +126,7 @@
     "audit_user": "User",
     "audit_action": "Action",
     "audit_details": "Details",
+    "btn_apply": "Apply",
     "btn_save": "Save",
     "btn_cancel": "Cancel",
     "language": "Language",
@@ -319,6 +320,18 @@
     "success_msg": "Face for '{name}' has been saved successfully!",
     "capture_help": "SPACE to capture, ESC to cancel"
   },
+  "audit_actions": {
+    "login": "Login",
+    "logout": "Logout",
+    "face_enrolled": "Face Enrolled",
+    "person_deleted": "Person Deleted",
+    "encoding_deleted": "Encoding Deleted",
+    "user_created": "User Created",
+    "user_deleted": "User Deleted",
+    "database_restored": "Database Restored",
+    "backup_created": "Backup Created",
+    "settings_change": "Settings Changed"
+  },
   "common": {
     "logout_confirm_title": "Logout",
     "logout_confirm_msg": "Are you sure you want to logout?",
@@ -330,12 +343,26 @@
     "events_export": "Export",
     "msg_error": "Error",
     "msg_success": "Success",
-    "msg_language_changed": "Language changed successfully!"
+    "msg_language_changed": "Language changed successfully!",
+    "btn_yes": "Yes",
+    "btn_no": "No",
+    "exit_confirm_msg": "System is running. Exit?"
   },
   "errors": {
     "camera_connection": "Cannot connect to camera",
     "database_error": "Database error occurred",
     "disk_full": "Disk space is running low",
     "model_load_failed": "AI model failed to load"
+  },
+  "cyber": {
+    "init_system": "INIT_SYSTEM",
+    "system_offline": "SYSTEM_OFFLINE",
+    "live_log": "LIVE_LOG // REALTIME STREAM",
+    "vector_search": "VECTOR SEARCH PROTOCOL",
+    "press_init": "PRESS [INIT_SYSTEM]",
+    "signal_lost": "SIGNAL_LOST",
+    "linking": "LINKING...",
+    "link_failure": "LINK_FAILURE",
+    "waiting": "WAITING_FOR_STREAM..."
   }
 }

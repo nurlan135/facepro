@@ -33,8 +33,8 @@ class AuditTab(QWidget):
         header_layout.addWidget(QLabel(f"<b>{tr('audit_logs_title') if tr('audit_logs_title') != 'audit_logs_title' else 'Audit Tarixçəsi'}</b>"))
         header_layout.addStretch()
         
-        self.btn_refresh = QPushButton(f"🔄 {tr('refresh') if tr('refresh') != 'refresh' else 'Yenilə'}")
-        self.btn_refresh.setProperty("class", "secondary")
+        self.btn_refresh = QPushButton(f"🔄 {tr('refresh') if tr('refresh') != 'refresh' else 'Yenilə'}".upper())
+        self.btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_refresh.clicked.connect(self._load_logs)
         header_layout.addWidget(self.btn_refresh)
         
@@ -57,7 +57,7 @@ class AuditTab(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.setAlternatingRowColors(True)
+        self.table.setAlternatingRowColors(False)
         
         layout.addWidget(self.table)
         
@@ -76,15 +76,37 @@ class AuditTab(QWidget):
         self.table.setRowCount(len(logs))
         
         for i, log in enumerate(logs):
-            # Timestamp
-            self.table.setItem(i, 0, QTableWidgetItem(log['timestamp']))
+            # Timestamp (Formatted: dd.mm.yyyy HH:MM:SS)
+            try:
+                # 2025-12-23T11:26:47.691387
+                ts_str = log['timestamp']
+                if 'T' in ts_str:
+                    date_part, time_part = ts_str.split('T')
+                    time_part = time_part.split('.')[0] # Remove microseconds
+                    
+                    # Reformat date: YYYY-MM-DD -> DD.MM.YYYY
+                    if '-' in date_part:
+                        y, m, d = date_part.split('-')
+                        date_part = f"{d}.{m}.{y}"
+                    
+                    ts_str = f"{date_part} {time_part}"
+                
+                self.table.setItem(i, 0, QTableWidgetItem(ts_str))
+            except:
+                self.table.setItem(i, 0, QTableWidgetItem(log['timestamp']))
             # Username
             user_item = QTableWidgetItem(log['username'])
             if log['username'] == 'System':
                 user_item.setForeground(Qt.GlobalColor.gray)
             self.table.setItem(i, 1, user_item)
-            # Action
-            action_item = QTableWidgetItem(log['action'])
+            # Action (Translated)
+            action_key = log['action'].lower()
+            translated_action = tr(f"audit_actions.{action_key}")
+            # If translation fails (returns key), fallback to original
+            if translated_action == f"audit_actions.{action_key}":
+                translated_action = log['action']
+            
+            action_item = QTableWidgetItem(translated_action)
             self._style_action_item(action_item, log['action'])
             self.table.setItem(i, 2, action_item)
             # Details

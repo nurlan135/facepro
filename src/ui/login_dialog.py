@@ -25,98 +25,107 @@ from src.ui.styles import COLORS
 
 LOGIN_STYLE = f"""
 QDialog {{
-    background-color: {COLORS['bg_dark']};
+    background-color: {COLORS.get('bg_void', '#020202')};
+    border: 1px solid {COLORS.get('border_tech', '#333')};
 }}
 QLabel {{
-    color: {COLORS['text_primary']};
-    font-family: 'Segoe UI', sans-serif;
+    color: {COLORS.get('text_main', '#E0E0E0')};
+    font-family: 'Rajdhani', sans-serif;
     background-color: transparent;
 }}
 QLabel#Title {{
-    color: {COLORS['primary']};
-    font-size: 28px;
+    color: {COLORS.get('cyber_cyan', '#0FF')};
+    font-size: 42px;
     font-weight: bold;
+    letter-spacing: 4px;
+    text-transform: uppercase;
 }}
 QLabel#Subtitle {{
-    color: {COLORS['text_secondary']};
+    color: {COLORS.get('text_muted', '#888')};
     font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
 }}
 QLabel#FieldLabel {{
-    color: {COLORS['text_secondary']};
-    font-size: 13px;
-    font-weight: 600;
+    color: {COLORS.get('cyber_cyan', '#0FF')};
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
 }}
 QLabel#ErrorLabel {{
-    color: {COLORS['danger']};
-    font-size: 13px;
-    font-weight: 500;
-    padding: 8px;
-    background-color: rgba(231, 76, 60, 0.1);
-    border-radius: 6px;
+    color: {COLORS.get('alert_red', '#FF3300')};
+    font-size: 12px;
+    font-weight: bold;
+    padding: 10px;
+    background-color: rgba(255, 51, 0, 0.1);
+    border: 1px solid {COLORS.get('alert_red', '#FF3300')};
 }}
 QLabel#LockedLabel {{
-    color: {COLORS['warning']};
-    font-size: 13px;
-    font-weight: 600;
+    color: {COLORS.get('warning', '#FFCC00')};
+    font-size: 12px;
+    font-weight: bold;
     padding: 10px;
-    background-color: rgba(241, 196, 15, 0.15);
-    border: 1px solid {COLORS['warning']};
-    border-radius: 6px;
+    background-color: rgba(255, 204, 0, 0.1);
+    border: 1px solid {COLORS.get('warning', '#FFCC00')};
 }}
 QLineEdit {{
-    background-color: {COLORS['bg_light']};
-    color: {COLORS['text_primary']};
-    border: 1px solid {COLORS['border']};
-    border-radius: 8px;
+    background-color: rgba(255, 255, 255, 0.05);
+    color: {COLORS.get('text_main', '#FFF')};
+    border: 1px solid {COLORS.get('border_tech', '#333')};
+    border-radius: 0px;
     padding: 12px 16px;
-    font-family: 'Segoe UI', sans-serif;
+    font-family: 'Consolas', monospace;
     font-size: 14px;
-    selection-background-color: {COLORS['primary']};
+    selection-background-color: {COLORS.get('cyber_cyan', '#0FF')};
+    selection-color: black;
 }}
 QLineEdit:focus {{
-    border: 2px solid {COLORS['primary']};
-    background-color: {COLORS['bg_light']};
+    border: 1px solid {COLORS.get('cyber_cyan', '#0FF')};
+    background-color: rgba(0, 240, 255, 0.05);
 }}
 QLineEdit:disabled {{
-    background-color: {COLORS['bg_medium']};
-    color: {COLORS['text_muted']};
+    background-color: rgba(0, 0, 0, 0.5);
+    color: {COLORS.get('text_muted', '#888')};
 }}
 QPushButton {{
-    border-radius: 8px;
+    border-radius: 0px;
     padding: 12px 24px;
-    font-family: 'Segoe UI', sans-serif;
+    font-family: 'Rajdhani', sans-serif;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
 }}
 QPushButton#LoginBtn {{
-    background-color: {COLORS['primary']};
-    color: white;
-    border: none;
-    font-size: 15px;
-    min-height: 20px;
+    background-color: {COLORS.get('cyber_cyan', '#0FF')};
+    color: black;
+    border: 1px solid {COLORS.get('cyber_cyan', '#0FF')};
+    font-size: 16px;
 }}
 QPushButton#LoginBtn:hover {{
-    background-color: {COLORS['primary_hover']};
+    background-color: #00D0DD; /* Slightly darker cyan */
+    box-shadow: 0 0 10px {COLORS.get('cyber_cyan', '#0FF')};
 }}
 QPushButton#LoginBtn:pressed {{
-    background-color: #1d4ed8;
+    background-color: #00B0BB;
 }}
 QPushButton#LoginBtn:disabled {{
-    background-color: {COLORS['border']};
-    color: {COLORS['text_muted']};
+    background-color: {COLORS.get('border_tech', '#333')};
+    color: {COLORS.get('text_muted', '#888')};
+    border: 1px solid {COLORS.get('border_tech', '#333')};
 }}
 QPushButton#ExitBtn {{
     background-color: transparent;
-    color: {COLORS['text_secondary']};
-    border: 1px solid {COLORS['border']};
+    color: {COLORS.get('text_muted', '#888')};
+    border: 1px solid {COLORS.get('border_tech', '#333')};
 }}
 QPushButton#ExitBtn:hover {{
-    background-color: {COLORS['bg_light']};
-    color: {COLORS['text_primary']};
-    border-color: {COLORS['border_light']};
+    border: 1px solid {COLORS.get('alert_red', '#F30')};
+    color: {COLORS.get('alert_red', '#F30')};
 }}
 QFrame#Divider {{
-    background-color: {COLORS['border']};
+    background-color: {COLORS.get('border_tech', '#333')};
     max-height: 1px;
 }}
 """
@@ -172,7 +181,7 @@ class LoginDialog(QDialog):
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header_layout.addWidget(title_label)
         
-        subtitle = QLabel(tr("login_subtitle"))
+        subtitle = QLabel(tr("login_subtitle").upper())
         subtitle.setObjectName("Subtitle")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header_layout.addWidget(subtitle)
@@ -235,7 +244,7 @@ class LoginDialog(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(12)
         
-        exit_btn = QPushButton(tr("login_btn_exit"))
+        exit_btn = QPushButton(tr("login_btn_exit").upper())
         exit_btn.setObjectName("ExitBtn")
         exit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         exit_btn.clicked.connect(self._exit_app)
@@ -243,7 +252,7 @@ class LoginDialog(QDialog):
         exit_btn.setDefault(False)
         btn_layout.addWidget(exit_btn)
         
-        self.login_btn = QPushButton(tr("login_btn_signin"))
+        self.login_btn = QPushButton(tr("login_btn_signin").upper())
         self.login_btn.setObjectName("LoginBtn")
         self.login_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.login_btn.clicked.connect(self._attempt_login)
